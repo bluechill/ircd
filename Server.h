@@ -43,7 +43,7 @@ public:
 	~Server();
 
 	virtual void on_client_connect(int client_sock) {}
-	virtual void on_client_disconnect(int client_socket) {} //Not implemented currently
+	virtual void on_client_disconnect(int client_socket) {}
 
 	virtual void recieve_message(std::string message, int client_sock) {}
 	
@@ -53,6 +53,7 @@ public:
 	void send_message(std::string &message, int client_socket);
 	
 	void accept_client(int client_sock);
+	void disconnect_client(int client_sock);
 	
 	pthread_mutex_t* get_mutex() { return server_mutex; }
 private:

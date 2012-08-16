@@ -37,6 +37,20 @@ void* server_read_thread_function(void* accept)
 			
 			char buffer[512];
 			bytes_recieved = recv(sock, buffer, 512, 0);
+			
+			if (bytes_recieved == 0)
+			{
+				server->on_client_disconnect(sock);
+				
+				pthread_mutex_lock(server->get_mutex());
+				
+				server->disconnect_client(sock);
+				
+				pthread_mutex_unlock(server->get_mutex());
+				
+				break;
+			}
+			
 			buffer[bytes_recieved] = '\0';
 			
 			message += buffer;
@@ -318,4 +332,11 @@ void Server::send_message(std::string &message, int client_socket)
 void Server::accept_client(int client_sock)
 {
 	clients.insert(client_sock);
+}
+
+void Server::disconnect_client(int client_sock)
+{
+	std::set<int>::iterator it = clients.find(client_sock);
+	if (it != clients.end())
+		clients.erase(it);
 }
