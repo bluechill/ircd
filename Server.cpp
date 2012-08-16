@@ -319,7 +319,7 @@ void Server::broadcast_message_to_clients(std::string &message, std::set<int> so
 	pthread_mutex_unlock(server_mutex);
 }
 
-void Server::send_message(std::string &message, int client_socket)
+void Server::send_message(std::string &message, int &client_socket)
 {
 	using namespace std;
 	
@@ -329,12 +329,12 @@ void Server::send_message(std::string &message, int client_socket)
 	write(client_socket, message.c_str(), message.size());
 }
 
-void Server::accept_client(int client_sock)
+void Server::accept_client(int &client_sock)
 {
 	clients.insert(client_sock);
 }
 
-void Server::disconnect_client(int client_sock)
+void Server::disconnect_client(int &client_sock)
 {
 	std::set<int>::iterator it = clients.find(client_sock);
 	if (it != clients.end())

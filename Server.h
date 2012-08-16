@@ -42,27 +42,29 @@ public:
 	Server(int port, Server_Type type, bool verbose = true);
 	~Server();
 
-	virtual void on_client_connect(int client_sock) {}
-	virtual void on_client_disconnect(int client_socket) {}
+	virtual void on_client_connect(int &client_sock) {}
+	virtual void on_client_disconnect(int &client_socket) {}
 
-	virtual void recieve_message(std::string message, int client_sock) {}
+	virtual void recieve_message(std::string &message, int &client_sock) {}
 	
 	void broadcast_message(std::string &message);
 	void broadcast_message_to_clients(std::string &message, std::set<int> sockets);
 
-	void send_message(std::string &message, int client_socket);
+	void send_message(std::string &message, int &client_socket);
 	
-	void accept_client(int client_sock);
-	void disconnect_client(int client_sock);
+	void accept_client(int &client_sock);
+	void disconnect_client(int &client_sock);
 	
 	pthread_mutex_t* get_mutex() { return server_mutex; }
+	
+protected:
+	bool verbose;
+	
 private:
 	pthread_t server_thread_ipv4;
 	pthread_t server_thread_ipv6;
 	
 	pthread_mutex_t* server_mutex;
-	
-	bool verbose;
 	
 	int server_sock_ipv4;
 	int server_sock_ipv6;
