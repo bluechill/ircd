@@ -2,17 +2,21 @@ CC=clang++
 CXX=$(CC)
 LD=$(CC)
 
-OBJECTS=Server.o main.o
+CFLAGS=-g
+CXXFLAGS=$(CFLAGS)
+LDFLAGS=-lpthread
+
+OBJECTS=Server.o IRC_Server.o main.o
 
 PROG=ircd
 
 all: $(PROG)
 
 $(PROG): Makefile $(OBJECTS)
-	@$(LD) -o $(PROG) $(OBJECTS)
+	@$(LD) $(LDFLAGS) -o $(PROG) $(OBJECTS)
 
 %.o: %.cpp
-	@$(CXX) -c -o $@ $^
+	@$(CXX) $(CXXFLAGS) -c -o $@ $^
 
 clean:
 	@rm -f $(OBJECTS)

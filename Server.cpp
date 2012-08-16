@@ -110,19 +110,21 @@ void server_thread_function(Accept_Struct* accept_struct, bool ipv6)
 		
 		pthread_mutex_unlock(server->get_mutex());
 		
-		pthread_t* thread;
+		pthread_t accept_thread;
 		
 		Accept_Struct* to_pass = new Accept_Struct;
 		to_pass->server = accept_struct->server;
 		to_pass->socket = client_sock;
 		
-		pthread_create(thread, NULL, server_accept_thread_function, (void*)to_pass);
+		pthread_create(&accept_thread, NULL, server_accept_thread_function, (void*)to_pass);
 		
 		Accept_Struct* read_to_pass = new Accept_Struct;
 		read_to_pass->server = accept_struct->server;
 		read_to_pass->socket = client_sock;
 		
-		pthread_create(thread, NULL, server_read_thread_function, (void*)read_to_pass);
+		pthread_t read_thread;
+		
+		pthread_create(&read_thread, NULL, server_read_thread_function, (void*)read_to_pass);
 	}
 }
 
@@ -193,7 +195,11 @@ Server::Server(int port, Server_Type type, bool verbose)
 			throw IPv4_Initialization_Failure;
 		}
 		
-		status = pthread_create(&server_thread_ipv4, NULL, server_thread_function_ipv4,  (void*)this);
+		Accept_Struct* accept_struct = new Accept_Struct;
+		accept_struct->server = this;
+		accept_struct->socket = server_sock_ipv4;
+		
+		status = pthread_create(&server_thread_ipv4, NULL, server_thread_function_ipv4, accept_struct);
 		if (status)
 		{
 			cerr << "Failed to create server thread with error: " << status << " (\"" << strerror(errno) << "\")" << endl;
@@ -231,7 +237,11 @@ Server::Server(int port, Server_Type type, bool verbose)
 			throw IPv6_Initialization_Failure;
 		}
 		
-		status = pthread_create(&server_thread_ipv6, NULL, server_thread_function_ipv6,  (void*)this);
+		Accept_Struct* accept_struct = new Accept_Struct;
+		accept_struct->server = this;
+		accept_struct->socket = server_sock_ipv6;
+		
+		status = pthread_create(&server_thread_ipv6, NULL, server_thread_function_ipv6, accept_struct);
 		if (status)
 		{
 			cerr << "Failed to create server thread with error: " << status << " (\"" << strerror(errno) << "\")" << endl;
