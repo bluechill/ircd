@@ -15,8 +15,8 @@ all: $(PROG)
 $(PROG): Makefile $(OBJECTS)
 	@$(LD) $(LDFLAGS) -o $(PROG) $(OBJECTS)
 
-%.o: %.cpp
-	@$(CXX) $(CXXFLAGS) -c -o $@ $^
+%.o: %.cpp %.h
+	@$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 clean:
 	@rm -f $(OBJECTS)

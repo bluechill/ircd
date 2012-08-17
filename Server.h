@@ -3,6 +3,7 @@
 
 #include <string>
 #include <set>
+#include <vector>
 #include <exception>
 
 #include <pthread.h>
@@ -55,7 +56,7 @@ public:
 	void accept_client(int &client_sock);
 	void disconnect_client(int &client_sock);
 	
-	pthread_mutex_t* get_mutex() { return server_mutex; }
+	pthread_mutex_t* get_mutex() { return &server_mutex; }
 	
 protected:
 	bool verbose;
@@ -64,14 +65,14 @@ private:
 	pthread_t server_thread_ipv4;
 	pthread_t server_thread_ipv6;
 	
-	pthread_mutex_t* server_mutex;
+	pthread_mutex_t server_mutex;
 	
 	int server_sock_ipv4;
 	int server_sock_ipv6;
 	
 	Server_Type server_type;
 	
-	std::set<int> clients;
+	std::vector<int> clients;
 };
 
 #endif

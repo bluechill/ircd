@@ -13,20 +13,22 @@ public:
 	
 	struct Channel {
 		std::string name;
-		std::set<char> modes;
+		std::vector<char> modes;
 		
-		std::set<User*> users;
+		std::vector<User*> users;
 	};
 	
 	struct User {
 		std::string nick;
 		std::string username;
+		std::string realname;
+		std::string hostname;
 		
 		int socket;
 		
-		std::set<char> modes;
+		std::vector<char> modes;
 		
-		std::set<Channel*> channels;
+		std::vector<Channel*> channels;
 	};
 	
 	IRC_Server();
@@ -38,16 +40,36 @@ public:
 	void recieve_message(std::string &message, int &client_sock);
 	
 	void send_message(std::string &message, User* user);
-	void broadcast_message(std::string &message, std::set<User*> users);
+	void broadcast_message(std::string &message, std::vector<User*> users);
 	
 	void broadcast_message(std::string &message, Channel* users);
-	void broadcast_message(std::string &message, std::set<Channel*> channels);
+	void broadcast_message(std::string &message, std::vector<Channel*> channels);
+	
+	static const std::string irc_ending;
 	
 private:
-	std::set<User*> users;
-	std::set<Channel*> channels;
+	enum Message_Type
+	{
+		NICK = 0,
+		USER,
+		PONG,
+		JOIN,
+		PART,
+		PRIVMSG,
+		LIST,
+		QUIT,
+		UNKNOWN
+	};
 	
-	void parse_message(std::string &message);
+	static Message_Type string_to_message_type(std::string &message);
+	
+	User* sock_to_user(int &sock);
+	Channel* channel_name_to_channel(std::string &channel);
+	
+	std::vector<User*> users;
+	std::vector<Channel*> channels;
+	
+	void parse_message(std::string &message, int &client_sock);
 };
 
 #endif

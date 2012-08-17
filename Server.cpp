@@ -173,7 +173,7 @@ Server::Server(int port, Server_Type type, bool verbose)
 {
 	using namespace std;
 	
-	pthread_mutex_init(server_mutex, NULL);
+	pthread_mutex_init(&server_mutex, NULL);
 	
 	server_type = type;
 	this->verbose = verbose;
@@ -269,9 +269,9 @@ Server::~Server()
 	using namespace std;
 	
 	pthread_exit(NULL);
-	pthread_mutex_destroy(server_mutex);
+	pthread_mutex_destroy(&server_mutex);
 	
-	for (set<int>::iterator it = clients.begin();it != clients.end();it++)
+	for (vector<int>::iterator it = clients.begin();it != clients.end();it++)
 		close(*it);
 	
 	if (server_type == IPv4_Server || server_type == Dual_IPv4_IPv6_Server)
@@ -288,12 +288,12 @@ void Server::broadcast_message(std::string &message)
 	const char* c_msg = message.c_str();
 	size_t size = message.size();
 	
-	pthread_mutex_lock(server_mutex);
+	pthread_mutex_lock(&server_mutex);
 	
-	for (set<int>::iterator it = clients.begin();it != clients.end();it++)
+	for (vector<int>::iterator it = clients.begin();it != clients.end();it++)
 		write(*it, c_msg, size);
 	
-	pthread_mutex_unlock(server_mutex);
+	pthread_mutex_unlock(&server_mutex);
 }
 
 void Server::broadcast_message_to_clients(std::string &message, std::set<int> sockets)
@@ -303,27 +303,27 @@ void Server::broadcast_message_to_clients(std::string &message, std::set<int> so
 	const char* c_msg = message.c_str();
 	size_t size = message.size();
 	
-	pthread_mutex_lock(server_mutex);
+	pthread_mutex_lock(&server_mutex);
 	
 	for (set<int>::iterator it = sockets.begin();it != sockets.end();it++)
 	{
-		if (clients.find(*it) == clients.end())
+		if (find(clients.begin(), clients.end(), *it) == clients.end())
 		{
-			pthread_mutex_unlock(server_mutex);
+			pthread_mutex_unlock(&server_mutex);
 			throw Sending_Without_Existence;
 		}
 		
 		write(*it, c_msg, size);
 	}
 	
-	pthread_mutex_unlock(server_mutex);
+	pthread_mutex_unlock(&server_mutex);
 }
 
 void Server::send_message(std::string &message, int &client_socket)
 {
 	using namespace std;
 	
-	if (clients.find(client_socket) == clients.end())
+	if (find(clients.begin(), clients.end(), client_socket) == clients.end())
 		throw Sending_Without_Existence;
 	
 	write(client_socket, message.c_str(), message.size());
@@ -331,12 +331,13 @@ void Server::send_message(std::string &message, int &client_socket)
 
 void Server::accept_client(int &client_sock)
 {
-	clients.insert(client_sock);
+	clients.push_back(client_sock);
+	sort(clients.begin(),clients.end());
 }
 
 void Server::disconnect_client(int &client_sock)
 {
-	std::set<int>::iterator it = clients.find(client_sock);
+	std::vector<int>::iterator it = find(clients.begin(), clients.end(), client_sock);
 	if (it != clients.end())
 		clients.erase(it);
 }
