@@ -47,6 +47,15 @@ public:
 	
 	static const std::string irc_ending;
 	
+	void parse_nick(User* user, std::vector<std::string> parts);
+	void parse_user(User* user, std::vector<std::string> parts);
+	void parse_pong(User* user, std::vector<std::string> parts);
+	void parse_join(User* user, std::vector<std::string> parts);
+	void parse_part(User* user, std::vector<std::string> parts);
+	void parse_privmsg(User* user, std::vector<std::string> parts);
+	void parse_list(User* user, std::vector<std::string> parts);
+	void parse_quit(User* user, std::vector<std::string> parts);
+	
 private:
 	enum Message_Type
 	{

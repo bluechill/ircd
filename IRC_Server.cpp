@@ -225,126 +225,49 @@ void IRC_Server::parse_message(std::string &message, int &client_sock)
 	{
 		case NICK:
 		{
-			if (parts.size() != 2)
-				return;
-			
-			string old_nick = user->nick;
-			user->nick = parts[1];
-			
-			if (user->username[0] != '\1')
-			{
-			
-				string result = ":";
-				result += old_nick;
-				result += "!";
-				result += user->username;
-				result += "@";
-				result += user->hostname;
-				
-				result += " NICK :";
-				
-				result += user->nick;
-				
-				result += irc_ending;
-			
-				broadcast_message(result, user->channels);
-			}
+			parse_nick(user, parts);
 			
 			return;
 		}
 		case USER:
 		{
-			if (parts.size() != 5 || user->username[0] != '\1')
-				return;
-			
-			user->username = parts[1];
-			user->realname = parts[4];
+			parse_user(user, parts);
 			
 			return;
 		}
 		case PONG:
 		{
+			parse_pong(user, parts);
 			
 			return;
 		}
 		case JOIN:
 		{
-			if (parts.size() != 2 && parts.size() != 3)
-				return;
-			
-			string result = ":";
-			result += user->nick;
-			result += "!";
-			result += user->username;
-			result += "@";
-			result += user->hostname;
-
-			result += " JOIN :";
-			
-			
-			string channels_string = parts[1];
-			for (int z = 0;z < channels_string.size();)
-			{
-				int next = channels_string.find(",", z);
-				
-				string channel = channels_string.substr(z, next);
-				z = next+1;
-				
-				bool found = false;
-				
-				string message = result;
-				message += channel;
-				message += irc_ending;
-				
-				for (vector<Channel*>::iterator it = channels.begin();it != channels.end();it++)
-				{
-					if ((*it)->name == channel)
-					{
-						found = true;
-						
-						user->channels.push_back(*it);
-						(*it)->users.push_back(user);
-						
-						broadcast_message(message, *it);
-						break;
-					}
-				}
-				
-				if (!found)
-				{
-					Channel* new_channel = new Channel;
-					new_channel->name = channel;
-					new_channel->users.push_back(user);
-					
-					channels.push_back(new_channel);
-					user->channels.push_back(new_channel);
-					
-					broadcast_message(message, new_channel);
-				}
-				
-				if (next == string::npos)
-					break;
-			}
+			parse_join(user, parts);
 			
 			return;
 		}
 		case PART:
 		{
+			parse_part(user, parts);
 			
 			return;
 		}
 		case LIST:
 		{
+			parse_list(user, parts);
 			
 			return;
 		}
 		case QUIT:
 		{
+			parse_quit(user, parts);
 			
 			return;
 		}
 		case PRIVMSG:
 		{
+			parse_privmsg(user, parts);
 			
 			return;
 		}
@@ -354,4 +277,193 @@ void IRC_Server::parse_message(std::string &message, int &client_sock)
 			return;
 		}
 	}
+}
+
+void IRC_Server::parse_nick(User* user, std::vector<std::string> parts)
+{
+	using namespace std;
+	
+	if (parts.size() != 2)
+		return;
+	
+	string old_nick = user->nick;
+	user->nick = parts[1];
+	
+	if (user->username[0] != '\1')
+	{
+		
+		string result = ":";
+		result += old_nick;
+		result += "!";
+		result += user->username;
+		result += "@";
+		result += user->hostname;
+		
+		result += " NICK :";
+		
+		result += user->nick;
+		
+		result += irc_ending;
+		
+		broadcast_message(result, user->channels);
+	}
+}
+
+void IRC_Server::parse_user(User* user, std::vector<std::string> parts)
+{
+	using namespace std;
+	
+	if (parts.size() != 5 || user->username[0] != '\1')
+		return;
+	
+	user->username = parts[1];
+	user->realname = parts[4];
+}
+
+void IRC_Server::parse_pong(User* user, std::vector<std::string> parts)
+{
+	using namespace std;
+	
+	
+}
+
+void IRC_Server::parse_join(User* user, std::vector<std::string> parts)
+{
+	using namespace std;
+	
+	if (parts.size() != 2 && parts.size() != 3)
+		return;
+	
+	string result = ":";
+	result += user->nick;
+	result += "!";
+	result += user->username;
+	result += "@";
+	result += user->hostname;
+	
+	result += " JOIN :";
+	
+	
+	string channels_string = parts[1];
+	for (int z = 0;z < channels_string.size();)
+	{
+		int next = channels_string.find(",", z);
+		
+		string channel = channels_string.substr(z, next);
+		z = next+1;
+		
+		bool found = false;
+		
+		string message = result;
+		message += channel;
+		message += irc_ending;
+		
+		for (vector<Channel*>::iterator it = channels.begin();it != channels.end();it++)
+		{
+			if ((*it)->name == channel)
+			{
+				found = true;
+				
+				user->channels.push_back(*it);
+				(*it)->users.push_back(user);
+				
+				broadcast_message(message, *it);
+				break;
+			}
+		}
+		
+		if (!found)
+		{
+			Channel* new_channel = new Channel;
+			new_channel->name = channel;
+			new_channel->users.push_back(user);
+			
+			channels.push_back(new_channel);
+			user->channels.push_back(new_channel);
+			
+			broadcast_message(message, new_channel);
+		}
+		
+		if (next == string::npos)
+			break;
+	}
+}
+
+void IRC_Server::parse_part(User* user, std::vector<std::string> parts)
+{
+	using namespace std;
+	
+	if (parts.size() != 2)
+		return;
+	
+	string result = ":";
+	result += user->nick;
+	result += "!";
+	result += user->username;
+	result += "@";
+	result += user->hostname;
+	
+	result += " PART ";
+	
+	string channels_string = parts[1];
+	for (int z = 0;z < channels_string.size();)
+	{
+		int next = channels_string.find(",", z);
+		
+		string channel = channels_string.substr(z, next);
+		z = next+1;
+		
+		string message = result;
+		message += channel;
+		message += irc_ending;
+		
+		for (vector<Channel*>::iterator it = channels.begin();it != channels.end();it++)
+		{
+			if ((*it)->name == channel)
+			{
+				vector<Channel*>::iterator user_it = find(user->channels.begin(), user->channels.end(), *it);
+				
+				if (user_it != user->channels.end())
+				{
+					vector<User*>::iterator channel_it = find((*it)->users.begin(), (*it)->users.end(), user);
+					
+					user->channels.erase(user_it);
+					
+					if (channel_it != (*it)->users.end())
+					{
+						broadcast_message(message, *it);
+						
+						(*it)->users.erase(channel_it);
+					}
+				}
+				
+				
+				break;
+			}
+		}
+		
+		if (next == string::npos)
+			break;
+	}
+}
+
+void IRC_Server::parse_privmsg(User* user, std::vector<std::string> parts)
+{
+	using namespace std;
+	
+	
+}
+
+void IRC_Server::parse_list(User* user, std::vector<std::string> parts)
+{
+	using namespace std;
+	
+	
+}
+
+void IRC_Server::parse_quit(User* user, std::vector<std::string> parts)
+{
+	using namespace std;
+	
+	
 }
