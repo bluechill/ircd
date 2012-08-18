@@ -95,7 +95,7 @@ void* ping_thread_function(void* data)
 				
 				link->send_message(ping_message, user);
 			}
-			else if ((double_current_time - user_time) > double(55))
+			else if ((double_current_time - user_time) > double(65))
 			{
 				string quit_message = "ERROR :Closing Link: " + user->nick + "[" + user->hostname + "] (Ping Timeout)" + IRC_Server::irc_ending;
 				
