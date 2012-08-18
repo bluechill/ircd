@@ -17,7 +17,7 @@ public:
 		
 		std::string topic;
 		
-		std::vector<User*> users;
+		std::map<User*, std::vector<char> > users;
 	};
 	
 	struct User {
