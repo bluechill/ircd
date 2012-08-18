@@ -15,6 +15,8 @@ public:
 		std::string name;
 		std::vector<char> modes;
 		
+		std::string topic;
+		
 		std::vector<User*> users;
 	};
 	
@@ -57,6 +59,8 @@ public:
 	void parse_quit(User* user, std::vector<std::string> parts);
 	
 private:
+	std::string hostname;
+	
 	enum Message_Type
 	{
 		NICK = 0,

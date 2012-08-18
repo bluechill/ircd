@@ -38,7 +38,7 @@ void* server_read_thread_function(void* accept)
 			char buffer[512];
 			bytes_recieved = recv(sock, buffer, 512, 0);
 			
-			if (bytes_recieved == 0)
+			if (bytes_recieved <= 0)
 			{
 				server->on_client_disconnect(sock);
 				
@@ -339,5 +339,10 @@ void Server::disconnect_client(int &client_sock)
 {
 	std::vector<int>::iterator it = find(clients.begin(), clients.end(), client_sock);
 	if (it != clients.end())
+	{
+		on_client_disconnect(client_sock);
+		
+		close(*it);
 		clients.erase(it);
+	}
 }

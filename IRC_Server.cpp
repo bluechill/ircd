@@ -3,6 +3,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <sstream>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -13,7 +14,28 @@ const std::string IRC_Server::irc_ending = "\r\n";
 
 IRC_Server::IRC_Server()
 : Server(6667, Server::Dual_IPv4_IPv6_Server, true)
-{}
+{
+	struct addrinfo hints, *info, *p;
+	int gai_result;
+	
+	char hostname[1024];
+	hostname[1023] = '\0';
+	gethostname(hostname, 1023);
+	
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = AF_UNSPEC; /*either IPV4 or IPV6*/
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_CANONNAME;
+	
+	if ((gai_result = getaddrinfo(hostname, "http", &hints, &info)) != 0)
+	{
+		std::cerr << "Get Address Info Error (LIST): '" << gai_strerror(gai_result) << "'" << std::endl;
+		
+		exit(1);
+	}
+	
+	this->hostname = info->ai_canonname;
+}
 
 IRC_Server::~IRC_Server()
 {
@@ -26,6 +48,8 @@ IRC_Server::~IRC_Server()
 
 void IRC_Server::on_client_connect(int &client_sock)
 {
+	using namespace std;
+	
 	User* new_user = new User;
 	new_user->nick.push_back('\1');
 	new_user->username.push_back('\1');
@@ -37,27 +61,34 @@ void IRC_Server::on_client_connect(int &client_sock)
 	
 	getpeername(client_sock, (struct sockaddr*)&addr, &length);
 	
-	char ipstr[INET6_ADDRSTRLEN];
+	struct hostent *hp;
 	
 	if (addr.ss_family == AF_INET)
 	{
 		struct sockaddr_in *s = (struct sockaddr_in *)&addr;
-		inet_ntop(AF_INET, &s->sin_addr, ipstr, sizeof(ipstr));
+		
+		if ((hp = gethostbyaddr((char *)&s->sin_addr, sizeof(s->sin_addr), AF_INET)))
+			new_user->hostname = hp->h_name;
+		else
+		{
+			cerr << "Error: " << hstrerror(h_errno) << endl;
+			close(client_sock);
+			return;
+		}
 	}
 	else
 	{
 		struct sockaddr_in6 *s = (struct sockaddr_in6 *)&addr;
-		inet_ntop(AF_INET6, &s->sin6_addr, ipstr, sizeof(ipstr));
+		
+		if ((hp = gethostbyaddr((char *)&s->sin6_addr, sizeof(s->sin6_addr), AF_INET6)))
+			new_user->hostname = hp->h_name;
+		else
+		{
+			cerr << "Error: " << hstrerror(h_errno) << endl;
+			close(client_sock);
+			return;
+		}
 	}
-	
-	struct addrinfo* result = NULL;
-	int status = getaddrinfo(ipstr, NULL, NULL, &result);
-	
-	char host[512];
-	
-	status = getnameinfo(result->ai_addr, result->ai_addrlen, host, 512, NULL, NULL, NULL);
-	
-	new_user->hostname = host;
 	
 	users.push_back(new_user);
 }
@@ -221,6 +252,15 @@ void IRC_Server::parse_message(std::string &message, int &client_sock)
 		return;
 	}
 	
+	if ((user->nick[0] == '\1' || user->username[0] == '\1') && (type != NICK && type != USER && type != QUIT && type != PONG))
+	{
+		string output = ":" + hostname + " 451 " + parts[0] + " :You have not registered" + irc_ending;
+		
+		send_message(output, user);
+		
+		return;
+	}
+	
 	switch (type)
 	{
 		case NICK:
@@ -286,12 +326,36 @@ void IRC_Server::parse_nick(User* user, std::vector<std::string> parts)
 	if (parts.size() != 2)
 		return;
 	
+	string new_nick = parts[1];
+	
+	for (vector<User*>::iterator it = users.begin();it != users.end();it++)
+	{
+		User* exist_user = *it;
+		
+		if (exist_user->nick.size() != new_nick.size())
+			continue;
+		
+		if (strncasecmp(exist_user->nick.c_str(), new_nick.c_str(), new_nick.size()) == 0)
+		{
+			string output = ":" + hostname + " 433 ";
+			
+			if (user->nick[0] == '\1')
+				output += "*";
+			else
+				output += user->nick;
+			
+			output += " " + new_nick + " :Nickname is already in use." + irc_ending;
+			
+			send_message(output, user);
+			return;
+		}
+	}
+	
 	string old_nick = user->nick;
-	user->nick = parts[1];
+	user->nick = new_nick;
 	
 	if (user->username[0] != '\1')
 	{
-		
 		string result = ":";
 		result += old_nick;
 		result += "!";
@@ -343,7 +407,6 @@ void IRC_Server::parse_join(User* user, std::vector<std::string> parts)
 	
 	result += " JOIN :";
 	
-	
 	string channels_string = parts[1];
 	for (int z = 0;z < channels_string.size();)
 	{
@@ -351,6 +414,15 @@ void IRC_Server::parse_join(User* user, std::vector<std::string> parts)
 		
 		string channel = channels_string.substr(z, next);
 		z = next+1;
+		
+		if (channel[0] != '#')
+		{
+			string output = ":" + hostname + " 403 " + user->nick + " " + channel + " :No such channel";
+			
+			send_message(output, user);
+			
+			continue;
+		}
 		
 		bool found = false;
 		
@@ -413,10 +485,20 @@ void IRC_Server::parse_part(User* user, std::vector<std::string> parts)
 		string channel = channels_string.substr(z, next);
 		z = next+1;
 		
+		if (channel[0] != '#')
+		{
+			string output = ":" + hostname + " 403 " + user->nick + " " + channel + " :No such channel";
+			
+			send_message(output, user);
+			
+			continue;
+		}
+		
 		string message = result;
 		message += channel;
 		message += irc_ending;
 		
+		bool found = false;
 		for (vector<Channel*>::iterator it = channels.begin();it != channels.end();it++)
 		{
 			if ((*it)->name == channel)
@@ -437,9 +519,21 @@ void IRC_Server::parse_part(User* user, std::vector<std::string> parts)
 					}
 				}
 				
+				if ((*it)->users.size() == 0)
+					it = channels.erase(it);
+				
+				found = true;
 				
 				break;
 			}
+		}
+		
+		if (found == false)
+		{
+			string output = ":" + hostname + " 403 " + user->nick + " " + channel + " :No such channel";
+			
+			send_message(output, user);
+			continue;
 		}
 		
 		if (next == string::npos)
@@ -451,19 +545,125 @@ void IRC_Server::parse_privmsg(User* user, std::vector<std::string> parts)
 {
 	using namespace std;
 	
+	if (parts.size() != 3)
+		return;
 	
+	string result = ":";
+	result += user->nick;
+	result += "!";
+	result += user->username;
+	result += "@";
+	result += user->hostname;
+	
+	result += " PRIVMSG ";
+	
+	string channels_string = parts[1];
+	for (int z = 0;z < channels_string.size();)
+	{
+		int next = channels_string.find(",", z);
+		
+		string channel = channels_string.substr(z, next);
+		z = next+1;
+		
+		if (channel[0] != '#')
+			continue;
+		
+		string message = result;
+		message += channel;
+		message += " :";
+		message += parts[2];
+		message += irc_ending;
+		
+		for (vector<Channel*>::iterator it = channels.begin();it != channels.end();it++)
+		{
+			if ((*it)->name == channel)
+			{
+				vector<Channel*>::iterator user_it = find(user->channels.begin(), user->channels.end(), *it);
+				
+				if (user_it != user->channels.end())
+				{
+					vector<User*>::iterator channel_it = find((*it)->users.begin(), (*it)->users.end(), user);
+					
+					if (channel_it != (*it)->users.end())
+					{
+						vector<User*> c_users = (*it)->users;
+						
+						c_users.erase(find(c_users.begin(),c_users.end(),user));
+						
+						broadcast_message(message, c_users);
+					}
+				}
+				
+				break;
+			}
+		}
+		
+		if (next == string::npos)
+			break;
+	}
 }
 
 void IRC_Server::parse_list(User* user, std::vector<std::string> parts)
 {
 	using namespace std;
 	
+	if (parts.size() != 1)
+		return;
 	
+	string begin = ":" + hostname + " 32";
+	
+	string start_of_list = begin + "1 " + user->nick + " Channel :Users  Name" + irc_ending;
+	
+	string list_message_start = begin + "2 " + user->nick + " ";
+	
+	string end_of_list = begin + "3 " + user->nick + " :End of /LIST" + irc_ending;
+	
+	send_message(start_of_list, user);
+	
+	for (vector<Channel*>::iterator it = channels.begin();it != channels.end();it++)
+	{
+		Channel* chan = (*it);
+		
+		stringstream ss;
+		ss << chan->users.size();
+		
+		string message = list_message_start + chan->name + " " + ss.str() + " :";
+		
+		string modes = "[+";
+		
+		for (vector<char>::iterator jt = chan->modes.begin();jt != chan->modes.end();jt++)
+			modes += *jt;
+		
+		modes += "]";
+		
+		message += modes;
+		
+		message += " " + chan->topic + irc_ending;
+		
+		send_message(message, user);
+	}
+	
+	send_message(end_of_list, user);
 }
 
 void IRC_Server::parse_quit(User* user, std::vector<std::string> parts)
 {
 	using namespace std;
 	
+	string quit_message = "ERROR :Closing Link: " + user->nick + "[" + user->hostname + "] (Quit: ";
 	
+	if (parts.size() == 1)
+		quit_message += user->nick;
+	else
+	{
+		for (vector<string>::iterator it = parts.begin()+1;it != parts.end();it++)
+			quit_message += *it;
+	}
+	
+	quit_message += ")";
+	quit_message += irc_ending;
+	
+	send_message(quit_message, user);
+	
+	disconnect_client(user->socket);
 }
