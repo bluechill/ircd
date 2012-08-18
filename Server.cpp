@@ -42,11 +42,7 @@ void* server_read_thread_function(void* accept)
 			{
 				server->on_client_disconnect(sock);
 				
-				pthread_mutex_lock(server->get_mutex());
-				
 				server->disconnect_client(sock);
-				
-				pthread_mutex_unlock(server->get_mutex());
 				
 				break;
 			}
@@ -118,11 +114,7 @@ void server_thread_function(Accept_Struct* accept_struct, bool ipv6)
 			break;
 		}
 		
-		pthread_mutex_lock(server->get_mutex());
-		
 		server->accept_client(client_sock);
-		
-		pthread_mutex_unlock(server->get_mutex());
 		
 		pthread_t accept_thread;
 		
@@ -323,20 +315,33 @@ void Server::send_message(std::string &message, int &client_socket)
 {
 	using namespace std;
 	
+	pthread_mutex_lock(&server_mutex);
+	
 	if (find(clients.begin(), clients.end(), client_socket) == clients.end())
+	{
+		pthread_mutex_unlock(&server_mutex);
 		throw Sending_Without_Existence;
+	}
+	
+	pthread_mutex_unlock(&server_mutex);
 	
 	write(client_socket, message.c_str(), message.size());
 }
 
 void Server::accept_client(int &client_sock)
 {
+	pthread_mutex_lock(&server_mutex);
+	
 	clients.push_back(client_sock);
 	sort(clients.begin(),clients.end());
+	
+	pthread_mutex_unlock(&server_mutex);
 }
 
 void Server::disconnect_client(int &client_sock)
 {
+	pthread_mutex_lock(&server_mutex);
+	
 	std::vector<int>::iterator it = find(clients.begin(), clients.end(), client_sock);
 	if (it != clients.end())
 	{
@@ -345,4 +350,6 @@ void Server::disconnect_client(int &client_sock)
 		close(*it);
 		clients.erase(it);
 	}
+	
+	pthread_mutex_unlock(&server_mutex);
 }

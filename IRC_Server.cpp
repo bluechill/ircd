@@ -10,11 +10,127 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
+#include <time.h>
+#include <unistd.h>
+
+#include <errno.h>
+
+#ifdef __MACH__
+
+#include <mach/mach_time.h>
+#define ORWL_NANO (+1.0E-9)
+#define ORWL_GIGA UINT64_C(1000000000)
+
+static double orwl_timebase = 0.0;
+static uint64_t orwl_timestart = 0;
+
+struct timespec orwl_gettime(void) {
+	// be more careful in a multithreaded environement
+	if (!orwl_timestart) {
+		mach_timebase_info_data_t tb = { 0 };
+		mach_timebase_info(&tb);
+		orwl_timebase = tb.numer;
+		orwl_timebase /= tb.denom;
+		orwl_timestart = mach_absolute_time();
+	}
+	struct timespec t;
+	double diff = (mach_absolute_time() - orwl_timestart) * orwl_timebase;
+	t.tv_sec = diff * ORWL_NANO;
+	t.tv_nsec = diff - (t.tv_sec * ORWL_GIGA);
+	return t;
+}
+
+#endif
+
 const std::string IRC_Server::irc_ending = "\r\n";
+
+void* ping_thread_function(void* data)
+{
+	using namespace std;
+	
+	IRC_Server::ping_thread_struct *pts = reinterpret_cast<IRC_Server::ping_thread_struct*>(data);
+	
+	vector<IRC_Server::User*>* users = pts->users;
+	pthread_mutex_t *ping_mutex = pts->ping_mutex;
+	IRC_Server* link = pts->server_handle;
+	
+	struct timespec current_time;
+	double double_current_time = 0.0;
+	
+	pthread_mutex_lock(ping_mutex);
+	
+	for (vector<IRC_Server::User*>::iterator it = users->begin();it != users->end();it++)
+		(*it)->ping_timer = -1;
+	
+	pthread_mutex_unlock(ping_mutex);
+	
+	while (true)
+	{
+		sleep(1);
+		
+#ifndef __MACH__
+		clock_gettime(CLOCK_MONOTONIC, &current_time);
+#else
+		current_time = orwl_gettime();
+#endif
+		
+		double_current_time = (double(current_time.tv_sec) + double(current_time.tv_nsec)/double(1E9));
+		
+		pthread_mutex_lock(ping_mutex);
+		
+		for (vector<IRC_Server::User*>::iterator it = users->begin();it != users->end();it++)
+		{
+			IRC_Server::User* user = *it;
+			
+			double user_time = user->ping_timer;
+			
+			if ((double_current_time - user_time) > double(30) &&
+				(double_current_time - user_time) < double(35) &&
+				!(user->nick[0] == '\1' || user->username[0] == '\1'))
+			{
+				string ping_message = "PING :" + link->get_hostname() + IRC_Server::irc_ending;
+				
+				user->ping_timer -= 5;
+				user->ping_contents = link->get_hostname();
+				
+				link->send_message(ping_message, user);
+			}
+			else if ((double_current_time - user_time) > double(55))
+			{
+				string quit_message = "ERROR :Closing Link: " + user->nick + "[" + user->hostname + "] (Ping Timeout)" + IRC_Server::irc_ending;
+				
+				link->send_message(quit_message, user);
+				
+				IRC_Server::User* temp_user = new IRC_Server::User;
+				temp_user->channels = user->channels;
+				temp_user->nick = user->nick;
+				temp_user->username = user->username;
+				temp_user->hostname = user->hostname;
+				
+				pthread_mutex_unlock(ping_mutex);
+				link->disconnect_client(user->socket);
+				it--;
+				
+				string output = ":" + temp_user->nick + "!" + temp_user->username + "@" + temp_user->hostname + " QUIT :Ping Timeout" + IRC_Server::irc_ending;
+				
+				link->broadcast_message(output, temp_user->channels);
+				pthread_mutex_lock(ping_mutex);
+			}
+		}
+		
+		pthread_mutex_unlock(ping_mutex);
+	};
+	
+	delete pts;
+}
 
 IRC_Server::IRC_Server()
 : Server(6667, Server::Dual_IPv4_IPv6_Server, true)
 {
+	srand(time(NULL));
+	
+	pthread_mutex_init(&ping_mutex, NULL);
+	
 	struct addrinfo hints, *info, *p;
 	int gai_result;
 	
@@ -35,10 +151,25 @@ IRC_Server::IRC_Server()
 	}
 	
 	this->hostname = info->ai_canonname;
+	
+	ping_thread_struct *pts = new ping_thread_struct;
+	pts->users = &users;
+	pts->ping_mutex = &ping_mutex;
+	pts->server_handle = this;
+	
+	int status = pthread_create(&ping_thread, NULL, ping_thread_function, pts);
+	if (status)
+	{
+		std::cerr << "Failed to create ping thread with error: " << status << " (\"" << strerror(errno) << "\")" << std::endl;
+		throw Thread_Initialization_Failure;
+	}
 }
 
 IRC_Server::~IRC_Server()
 {
+	pthread_exit(NULL);
+	pthread_mutex_destroy(&ping_mutex);
+	
 	for (std::vector<User*>::iterator it = users.begin();it != users.end();it++)
 		delete *it;
 	
@@ -55,6 +186,16 @@ void IRC_Server::on_client_connect(int &client_sock)
 	new_user->username.push_back('\1');
 	new_user->realname.push_back('\1');
 	new_user->socket = client_sock;
+	
+	struct timespec current_time;
+	
+#ifndef __MACH__
+	clock_gettime(CLOCK_MONOTONIC, &current_time);
+#else
+	current_time = orwl_gettime();
+#endif
+	
+	new_user->ping_timer = (double(current_time.tv_sec) + double(current_time.tv_nsec)/double(1E9));
 	
 	struct sockaddr_storage addr;
 	socklen_t length = sizeof(addr);
@@ -90,11 +231,14 @@ void IRC_Server::on_client_connect(int &client_sock)
 		}
 	}
 	
+	pthread_mutex_lock(&ping_mutex);
 	users.push_back(new_user);
+	pthread_mutex_unlock(&ping_mutex);
 }
 
 void IRC_Server::on_client_disconnect(int &client_socket)
 {
+	pthread_mutex_lock(&ping_mutex);
 	for (std::vector<User*>::iterator it = users.begin();it != users.end();it++)
 	{
 		if ((*it)->socket == client_socket)
@@ -104,6 +248,7 @@ void IRC_Server::on_client_disconnect(int &client_socket)
 			break;
 		}
 	}
+	pthread_mutex_unlock(&ping_mutex);
 }
 
 void IRC_Server::recieve_message(std::string &message, int &client_sock)
@@ -136,8 +281,10 @@ void IRC_Server::send_message(std::string &message, User* user)
 
 void IRC_Server::broadcast_message(std::string &message, std::vector<User*> users)
 {
+	pthread_mutex_lock(&ping_mutex);
 	for (std::vector<User*>::iterator it = users.begin();it != users.end();it++)
 		send_message(message, *it);
+	pthread_mutex_unlock(&ping_mutex);
 }
 
 void IRC_Server::broadcast_message(std::string &message, Channel* users)
@@ -181,11 +328,16 @@ IRC_Server::Message_Type IRC_Server::string_to_message_type(std::string &message
 
 IRC_Server::User* IRC_Server::sock_to_user(int &sock)
 {
+	pthread_mutex_lock(&ping_mutex);
 	for (std::vector<User*>::iterator it = users.begin();it != users.end();it++)
 	{
 		if ((*it)->socket == sock)
+		{
+			pthread_mutex_unlock(&ping_mutex);
 			return *it;
+		}
 	}
+	pthread_mutex_unlock(&ping_mutex);
 	
 	return NULL;
 }
@@ -328,6 +480,8 @@ void IRC_Server::parse_nick(User* user, std::vector<std::string> parts)
 	
 	string new_nick = parts[1];
 	
+	pthread_mutex_lock(&ping_mutex);
+	
 	for (vector<User*>::iterator it = users.begin();it != users.end();it++)
 	{
 		User* exist_user = *it;
@@ -347,9 +501,14 @@ void IRC_Server::parse_nick(User* user, std::vector<std::string> parts)
 			output += " " + new_nick + " :Nickname is already in use." + irc_ending;
 			
 			send_message(output, user);
+			
+			pthread_mutex_unlock(&ping_mutex);
+			
 			return;
 		}
 	}
+	
+	pthread_mutex_unlock(&ping_mutex);
 	
 	string old_nick = user->nick;
 	user->nick = new_nick;
@@ -371,6 +530,35 @@ void IRC_Server::parse_nick(User* user, std::vector<std::string> parts)
 		
 		broadcast_message(result, user->channels);
 	}
+	else
+	{
+		string random = "";
+		
+		for (int i = 0;i < 9;i++)
+		{
+			int num = rand()%42 + 48;
+			
+			if (num >= 58 && num <= 64)
+				num += 7;
+			
+			random += char(num);
+		}
+		
+		string ping_message = "PING :" + random + IRC_Server::irc_ending;
+		
+		struct timespec current_time;
+		
+#ifndef __MACH__
+		clock_gettime(CLOCK_MONOTONIC, &current_time);
+#else
+		current_time = orwl_gettime();
+#endif
+		
+		user->ping_timer  = (double(current_time.tv_sec) + double(current_time.tv_nsec)/double(1E9));
+		user->ping_contents = random;
+		
+		send_message(ping_message, user);
+	}
 }
 
 void IRC_Server::parse_user(User* user, std::vector<std::string> parts)
@@ -388,7 +576,24 @@ void IRC_Server::parse_pong(User* user, std::vector<std::string> parts)
 {
 	using namespace std;
 	
+	if (parts.size() != 2)
+		return;
 	
+	std::string contents = parts[1];
+	
+	if (user->ping_contents == contents)
+	{
+		struct timespec current_time;
+		
+#ifndef __MACH__
+		clock_gettime(CLOCK_MONOTONIC, &current_time);
+#else
+		current_time = orwl_gettime();
+#endif
+		
+		user->ping_timer  = (double(current_time.tv_sec) + double(current_time.tv_nsec)/double(1E9));
+		user->ping_contents = "";
+	}
 }
 
 void IRC_Server::parse_join(User* user, std::vector<std::string> parts)
@@ -652,18 +857,32 @@ void IRC_Server::parse_quit(User* user, std::vector<std::string> parts)
 	
 	string quit_message = "ERROR :Closing Link: " + user->nick + "[" + user->hostname + "] (Quit: ";
 	
+	string quit = "";
+	
 	if (parts.size() == 1)
-		quit_message += user->nick;
+		quit += user->nick;
 	else
 	{
 		for (vector<string>::iterator it = parts.begin()+1;it != parts.end();it++)
-			quit_message += *it;
+			quit += *it;
 	}
+	
+	quit_message += quit;
 	
 	quit_message += ")";
 	quit_message += irc_ending;
 	
 	send_message(quit_message, user);
 	
+	User* temp_user = new User;
+	temp_user->channels = user->channels;
+	temp_user->nick = user->nick;
+	temp_user->username = user->username;
+	temp_user->hostname = user->hostname;
+	
 	disconnect_client(user->socket);
+	
+	string output = ":" + temp_user->nick + "!" + temp_user->username + "@" + temp_user->hostname + " QUIT :" + quit + irc_ending;
+	
+	broadcast_message(output, temp_user->channels);
 }

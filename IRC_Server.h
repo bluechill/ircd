@@ -31,6 +31,9 @@ public:
 		std::vector<char> modes;
 		
 		std::vector<Channel*> channels;
+		
+		double ping_timer;
+		std::string ping_contents;
 	};
 	
 	IRC_Server();
@@ -58,6 +61,15 @@ public:
 	void parse_list(User* user, std::vector<std::string> parts);
 	void parse_quit(User* user, std::vector<std::string> parts);
 	
+	struct ping_thread_struct
+	{
+		std::vector<User*> *users;
+		pthread_mutex_t *ping_mutex;
+		IRC_Server* server_handle;
+	};
+	
+	std::string get_hostname() { return hostname; }
+	
 private:
 	std::string hostname;
 	
@@ -81,6 +93,9 @@ private:
 	
 	std::vector<User*> users;
 	std::vector<Channel*> channels;
+	
+	pthread_t ping_thread;
+	pthread_mutex_t ping_mutex;
 	
 	void parse_message(std::string &message, int &client_sock);
 };
