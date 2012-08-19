@@ -1032,7 +1032,7 @@ void IRC_Server::send_error_message(User* user, Error_Type error, std::string ar
 	stringstream ss;
 	ss << error;
 	
-	string output = ":" + hostname + " " + ss.str() + " ";
+	string output = ":" + hostname + " " + ss.str() + " " + user->nick + " ";
 	
 	switch (error)
 	{
