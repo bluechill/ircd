@@ -483,7 +483,7 @@ void IRC_Server::parse_nick(User* user, std::vector<std::string> parts)
 	
 	string new_nick = parts[1];
 	
-	if (new_nick.find_first_not_of("01234567890QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm_-\[]{}`^|") || new_nick.find_first_of("0123456789-_") == 0)
+	if (new_nick.find_first_not_of("01234567890QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm_-\[]{}`^|") != string::npos || new_nick.find_first_of("0123456789-_") == 0)
 	{
 		send_error_message(user, ERR_ERRONEUSNICKNAME, new_nick);
 		return;
@@ -500,6 +500,9 @@ void IRC_Server::parse_nick(User* user, std::vector<std::string> parts)
 		
 		if (strncasecmp(exist_user->nick.c_str(), new_nick.c_str(), new_nick.size()) == 0)
 		{
+			if (new_nick == user->nick)
+				break;
+			
 			send_error_message(user, ERR_NICKNAMEINUSE, new_nick);
 			
 			pthread_mutex_unlock(&ping_mutex);
@@ -513,7 +516,7 @@ void IRC_Server::parse_nick(User* user, std::vector<std::string> parts)
 	string old_nick = user->nick;
 	user->nick = new_nick;
 	
-	if (user->username.size() == 0)
+	if (user->username.size() != 0)
 	{
 		string result = ":";
 		result += old_nick;
