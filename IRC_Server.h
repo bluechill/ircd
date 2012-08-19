@@ -3,6 +3,10 @@
 
 #include "Server.h"
 
+#include "Config.h"
+
+class IRC_Plugin;
+
 #include <string>
 #include <set>
 #include <map>
@@ -161,6 +165,9 @@ private:
 	pthread_mutex_t ping_mutex;
 	
 	void parse_message(std::string &message, int &client_sock);
+	
+	Config conf;
+	std::vector<IRC_Plugin*> plugins;
 };
 
 #endif

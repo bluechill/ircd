@@ -1,5 +1,7 @@
 #include "IRC_Server.h"
 
+#include "IRC_Plugin.h"
+
 #include <iostream>
 #include <vector>
 #include <string>
@@ -125,8 +127,11 @@ void* ping_thread_function(void* data)
 }
 
 IRC_Server::IRC_Server()
-: Server(6667, Server::Dual_IPv4_IPv6_Server, true)
+: Server(6667, Server::Dual_IPv4_IPv6_Server, true),
+conf("plugins.conf")
 {
+	using namespace std;
+	
 	srand(time(NULL));
 	
 	pthread_mutex_init(&ping_mutex, NULL);
@@ -145,7 +150,7 @@ IRC_Server::IRC_Server()
 	
 	if ((gai_result = getaddrinfo(hostname, "http", &hints, &info)) != 0)
 	{
-		std::cerr << "Get Address Info Error (LIST): '" << gai_strerror(gai_result) << "'" << std::endl;
+		cerr << "Get Address Info Error (LIST): '" << gai_strerror(gai_result) << "'" << endl;
 		
 		exit(1);
 	}
@@ -160,8 +165,30 @@ IRC_Server::IRC_Server()
 	int status = pthread_create(&ping_thread, NULL, ping_thread_function, pts);
 	if (status)
 	{
-		std::cerr << "Failed to create ping thread with error: " << status << " (\"" << strerror(errno) << "\")" << std::endl;
+		cerr << "Failed to create ping thread with error: " << status << " (\"" << strerror(errno) << "\")" << endl;
 		throw Thread_Initialization_Failure;
+	}
+	
+	int last_line = 0;
+	for (int i = 0;;i++)
+	{
+		int current_line = 0;
+		string contents = conf.getElement("Plugin", last_line, &current_line);
+		
+		if (contents == "")
+			break;
+		
+		last_line = current_line+1;
+		
+		IRC_Plugin* plugin = new IRC_Plugin(contents, this);
+		
+		if (!plugin->is_valid())
+		{
+			delete plugin;
+			continue;
+		}
+		
+		plugins.push_back(plugin);
 	}
 }
 
@@ -174,6 +201,9 @@ IRC_Server::~IRC_Server()
 		delete *it;
 	
 	for (std::vector<Channel*>::iterator it = channels.begin();it != channels.end();it++)
+		delete *it;
+	
+	for (std::vector<IRC_Plugin*>::iterator it = plugins.begin();it != plugins.end();it++)
 		delete *it;
 }
 
@@ -234,15 +264,51 @@ void IRC_Server::on_client_connect(int &client_sock)
 	pthread_mutex_lock(&ping_mutex);
 	users.push_back(new_user);
 	pthread_mutex_unlock(&ping_mutex);
+	
+	for (vector<IRC_Plugin*>::iterator it = plugins.begin();it != plugins.end();it++)
+	{
+		IRC_Plugin* plugin = *it;
+		
+		vector<IRC_Plugin::Call_Type> types = plugin->get_supported_calls();
+		
+		vector<IRC_Plugin::Call_Type>::iterator types_it = find(types.begin(), types.end(), IRC_Plugin::ON_CLIENT_CONNECT);
+		
+		if (types_it != types.end())
+		{
+			IRC_Plugin::Result_Of_Call result = plugin->plugin_call(IRC_Plugin::ON_CLIENT_CONNECT, new_user, vector<string>());
+			
+			if (result == IRC_Plugin::FAILURE)
+				cerr << "Plugin failed (ON_CLIENT_CONNECT), see log for more details." << endl;
+		}
+	}
 }
 
 void IRC_Server::on_client_disconnect(int &client_socket)
 {
+	using namespace std;
+	
 	pthread_mutex_lock(&ping_mutex);
 	for (std::vector<User*>::iterator it = users.begin();it != users.end();it++)
 	{
 		if ((*it)->socket == client_socket)
 		{
+			for (vector<IRC_Plugin*>::iterator jt = plugins.begin();jt != plugins.end();jt++)
+			{
+				IRC_Plugin* plugin = *jt;
+				
+				vector<IRC_Plugin::Call_Type> types = plugin->get_supported_calls();
+				
+				vector<IRC_Plugin::Call_Type>::iterator types_it = find(types.begin(), types.end(), IRC_Plugin::ON_CLIENT_DISCONNECT);
+				
+				if (types_it != types.end())
+				{
+					IRC_Plugin::Result_Of_Call result = plugin->plugin_call(IRC_Plugin::ON_CLIENT_DISCONNECT, *it, vector<string>());
+					
+					if (result == IRC_Plugin::FAILURE)
+						cerr << "Plugin failed (ON_CLIENT_DISCONNECT), see log for more details." << endl;
+				}
+			}
+			
 			delete *it;
 			users.erase(it);
 			break;
@@ -256,17 +322,15 @@ void IRC_Server::recieve_message(std::string &message, int &client_sock)
 	using namespace std;
 	
 	if (verbose)
-		cout << "Recieved message: '" << message << "'";
+		cout << message;
 	
 	if (message.find("\n") == string::npos)
 	{
 		if (verbose)
-			cout << " which is invalid." << endl;
+			cout << " <-- is an invalid command, missing trailing \n." << endl;
 		
 		return;
 	}
-	else if (verbose)
-		cout << endl;
 	
 	parse_message(message, client_sock);
 }
@@ -399,8 +463,6 @@ void IRC_Server::parse_message(std::string &message, int &client_sock)
 		}
 	}
 	
-	Message_Type type = string_to_message_type(parts[0]);
-	
 	User* user = sock_to_user(client_sock);
 	
 	if (user == NULL)
@@ -409,11 +471,23 @@ void IRC_Server::parse_message(std::string &message, int &client_sock)
 		return;
 	}
 	
+	Message_Type type = string_to_message_type(parts[0]);
+	
 	if ((user->nick.size() == 0 || user->username.size() == 0) && (type != NICK && type != USER && type != QUIT && type != PONG))
 	{
-		send_error_message(user, ERR_ALREADYREGISTRED);
+		send_error_message(user, ERR_NOTREGISTERED);
 		
 		return;
+	}
+	
+	for (vector<IRC_Plugin*>::iterator it = plugins.begin();it != plugins.end();it++)
+	{
+		IRC_Plugin* plugin = *it;
+		
+		IRC_Plugin::Result_Of_Call result = plugin->plugin_call(IRC_Plugin::BEFORE_MESSAGE_PARSE, user, vector<string>());
+		
+		if (result == IRC_Plugin::FAILURE)
+			cerr << "Plugin failed (BEFORE_MESSAGE_PARSE), see log for more details." << endl;
 	}
 	
 	switch (type)
@@ -422,61 +496,92 @@ void IRC_Server::parse_message(std::string &message, int &client_sock)
 		{
 			parse_nick(user, parts);
 			
-			return;
+			break;
 		}
 		case USER:
 		{
 			parse_user(user, parts);
 			
-			return;
+			break;
 		}
 		case PONG:
 		{
 			parse_pong(user, parts);
 			
-			return;
+			break;
 		}
 		case JOIN:
 		{
 			parse_join(user, parts);
 			
-			return;
+			break;
 		}
 		case PART:
 		{
 			parse_part(user, parts);
 			
-			return;
+			break;
 		}
 		case NAMES:
 		{
 			parse_names(user, parts);
 			
-			return;
+			break;
 		}
 		case LIST:
 		{
 			parse_list(user, parts);
 			
-			return;
+			break;
 		}
 		case QUIT:
 		{
 			parse_quit(user, parts);
 			
-			return;
+			break;
 		}
 		case PRIVMSG:
 		{
 			parse_privmsg(user, parts);
 			
-			return;
+			break;
 		}
 		default:
 		{
-			cerr << "Invalid message: '" << message << "'" << endl;
-			return;
+			bool handled = false;
+			
+			for (vector<IRC_Plugin*>::iterator it = plugins.begin();it != plugins.end();it++)
+			{
+				IRC_Plugin* plugin = *it;
+				
+				IRC_Plugin::Result_Of_Call result = plugin->plugin_call(IRC_Plugin::ON_RECIEVE_MESSAGE, user, vector<string>());
+				
+				if (result == IRC_Plugin::FAILURE)
+					cerr << "Plugin failed (ON_RECIEVE_MESSAGE), see log for more details." << endl;
+				
+				if (result == IRC_Plugin::HANDLED)
+				{
+					handled = true;
+					break;
+				}
+			}
+			
+			if (!handled)
+			{
+				cerr << "Invalid message: '" << message << "'" << endl;
+				break;
+			}
 		}
+	}
+	
+	for (vector<IRC_Plugin*>::iterator it = plugins.begin();it != plugins.end();it++)
+	{
+		IRC_Plugin* plugin = *it;
+		
+		IRC_Plugin::Result_Of_Call result = plugin->plugin_call(IRC_Plugin::AFTER_MESSAGE_PARSE, user, vector<string>());
+		
+		if (result == IRC_Plugin::FAILURE)
+			cerr << "Plugin failed (AFTER_MESSAGE_PARSE), see log for more details." << endl;
 	}
 }
 

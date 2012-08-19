@@ -19,6 +19,7 @@ public:
 private:
 	void* handle;
 	
+protected:
 	bool valid;
 };
 

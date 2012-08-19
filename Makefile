@@ -9,7 +9,7 @@ LDFLAGS=-lpthread
 ARFLAGS=-cr
 
 IRCD_LIBRARY=IRCd.a
-IRCD_LIBRARY_OBJECTS=Server.o IRC_Server.o Plugin.o
+IRCD_LIBRARY_OBJECTS=Server.o IRC_Server.o Plugin.o IRC_Plugin.o Config.o
 
 OBJECTS=main.o
 
