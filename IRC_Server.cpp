@@ -579,7 +579,7 @@ void IRC_Server::parse_user(User* user, std::vector<std::string> parts)
 		return;
 	}
 	
-	if (parts.find_first_not_of("0123456789qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM_-.") != string::npos)
+	if (parts[1].find_first_not_of("0123456789qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM_-.") != string::npos)
 	{
 		string output = "ERROR :Closing Link: " + user->nick + "[" + user->hostname + "] (Hostile username.  Please only use 0-9 a-z A-Z _ - and . in your username.)" + irc_ending;
 		
@@ -890,7 +890,50 @@ void IRC_Server::parse_names(User* user, std::vector<std::string> parts)
 		return;
 	}
 	
+	if (channel != "*" && channel[0] == '#')
+	{
+		string list_of_users = ":" + hostname + " 353 " + user->nick + " = " + channel + " :";
+		
+		for (vector<Channel*>::iterator it = channels.begin();it != channels.end();it++)
+		{
+			Channel* chan;
+			
+			if (chan->name.size() != channel.size())
+				continue;
+			
+			if (strncasecmp(chan->name.c_str(), channel.c_str(), channel.size()) == 0)
+			{
+				string users = "";
+				
+				bool found = false;
+				
+				for (vector<User*>::iterator jt = chan->users.begin();jt != chan->users.end();jt++)
+				{
+					User* usr = *jt;
+					
+					users += usr->nick;
+					if ((jt + 1) != chan->users.end())
+						users += " ";
+					
+					if (user->nick.size() != user->nick.size())
+						continue;
+					
+					if (strncasecmp(usr->nick.c_str(), user->nick.c_str(), usr->nick.size()) == 0)
+						found = true;
+				}
+				
+				if (found)
+					list_of_users += users + irc_ending;
+				
+				break;
+			}
+		}
+		
+		send_message(list_of_users, user);
+	}
 	
+	string end_of_names = ":" + hostname + " 366 " + user->nick + " " + channel + " :End of /NAMES list." + irc_ending;
+	send_message(end_of_names, user);
 }
 
 void IRC_Server::parse_quit(User* user, std::vector<std::string> parts)
@@ -986,7 +1029,10 @@ void IRC_Server::send_error_message(User* user, Error_Type error, std::string ar
 	if (user == NULL)
 		return;
 	
-	string output = ":" + hostname + " " + error + " ";
+	stringstream ss;
+	ss << error;
+	
+	string output = ":" + hostname + " " + ss.str() + " ";
 	
 	switch (error)
 	{
@@ -1007,7 +1053,7 @@ void IRC_Server::send_error_message(User* user, Error_Type error, std::string ar
 		}
 		case ERR_CANNOTSENDTOCHAN:
 		{
-			output += arg1 + " :Cannot send to channel"
+			output += arg1 + " :Cannot send to channel";
 			break;
 		}
 		case ERR_TOOMANYCHANNELS:
