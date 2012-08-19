@@ -190,6 +190,42 @@ conf("plugins.conf")
 		
 		plugins.push_back(plugin);
 	}
+	
+	last_line = 0;
+	for (int i = 0;;i++)
+	{
+		int current_line = 0;
+		string plugins_directory = conf.getElement("PluginDirectory", last_line, &current_line);
+		
+		if (plugins_directory == "")
+			break;
+		
+		last_line = current_line+1;
+		
+		vector<string> files;
+		int status = getdir(plugins_directory, files);
+		
+		if (status != 0)
+		{
+			cerr << "Error getting the files in the directory specified for plugins." << endl;
+			continue;
+		}
+		
+		for (vector<string>::iterator it = files.begin();it != files.end();it++)
+		{
+			string path = plugins_directory + "/" + *it;
+			
+			IRC_Plugin* plugin = new IRC_Plugin(path, this);
+			
+			if (!plugin->is_valid())
+			{
+				delete plugin;
+				continue;
+			}
+			
+			plugins.push_back(plugin);
+		}
+	}
 }
 
 IRC_Server::~IRC_Server()
