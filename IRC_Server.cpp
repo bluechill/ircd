@@ -317,6 +317,11 @@ IRC_Server::Message_Type IRC_Server::string_to_message_type(std::string &message
 		else if (strncasecmp(message.c_str(), "QUIT", message.size()) == 0)
 			return QUIT;
 	}
+	else if (message.size() == 5)
+	{
+		if (strncasecmp(message.c_str(), "NAMES", message.size()) == 0)
+			return NAMES;
+	}
 	else if (message.size() == 7)
 	{
 		if (strncasecmp(message.c_str(), "PRIVMSG", message.size()) == 0)
@@ -440,6 +445,12 @@ void IRC_Server::parse_message(std::string &message, int &client_sock)
 		case PART:
 		{
 			parse_part(user, parts);
+			
+			return;
+		}
+		case NAMES:
+		{
+			parse_names(user, parts);
 			
 			return;
 		}
@@ -667,6 +678,11 @@ void IRC_Server::parse_join(User* user, std::vector<std::string> parts)
 			{
 				found = true;
 				
+				vector<User*>::iterator jt = find((*it)->users.begin(), (*it)->users.end(), user);
+				
+				if (jt != (*it)->users.end())
+					return;
+				
 				user->channels.push_back(*it);
 				(*it)->users.push_back(user);
 				
@@ -814,13 +830,7 @@ void IRC_Server::parse_privmsg(User* user, std::vector<std::string> parts)
 					vector<User*>::iterator channel_it = find((*it)->users.begin(), (*it)->users.end(), user);
 					
 					if (channel_it != (*it)->users.end())
-					{
-						vector<User*> c_users = (*it)->users;
-						
-						c_users.erase(find(c_users.begin(),c_users.end(),user));
-						
-						broadcast_message(message, c_users);
-					}
+						broadcast_message(message, *user_it);
 				}
 				
 				break;
@@ -897,15 +907,19 @@ void IRC_Server::parse_names(User* user, std::vector<std::string> parts)
 	{
 		string list_of_users = ":" + hostname + " 353 " + user->nick + " = " + channel + " :";
 		
+		bool found_channel = false;
+		
 		for (vector<Channel*>::iterator it = channels.begin();it != channels.end();it++)
 		{
-			Channel* chan;
+			Channel* chan = *it;;
 			
 			if (chan->name.size() != channel.size())
 				continue;
 			
 			if (strncasecmp(chan->name.c_str(), channel.c_str(), channel.size()) == 0)
 			{
+				found_channel = true;
+				
 				string users = "";
 				
 				bool found = false;
@@ -932,7 +946,8 @@ void IRC_Server::parse_names(User* user, std::vector<std::string> parts)
 			}
 		}
 		
-		send_message(list_of_users, user);
+		if (found_channel)
+			send_message(list_of_users, user);
 	}
 	
 	string end_of_names = ":" + hostname + " 366 " + user->nick + " " + channel + " :End of /NAMES list." + irc_ending;

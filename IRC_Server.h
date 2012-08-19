@@ -142,6 +142,7 @@ private:
 		PONG,
 		JOIN,
 		PART,
+		NAMES,
 		PRIVMSG,
 		LIST,
 		QUIT,
