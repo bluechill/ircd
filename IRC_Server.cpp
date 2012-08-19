@@ -86,7 +86,7 @@ void* ping_thread_function(void* data)
 			
 			if ((double_current_time - user_time) > double(30) &&
 				(double_current_time - user_time) < double(35) &&
-				!(user->nick[0] == '\1' || user->username[0] == '\1'))
+				!(user->nick.size() == 0 || user->username.size() == 0))
 			{
 				string ping_message = "PING :" + link->get_hostname() + IRC_Server::irc_ending;
 				
@@ -182,9 +182,9 @@ void IRC_Server::on_client_connect(int &client_sock)
 	using namespace std;
 	
 	User* new_user = new User;
-	new_user->nick.push_back('\1');
-	new_user->username.push_back('\1');
-	new_user->realname.push_back('\1');
+	new_user->nick = "";
+	new_user->username = "";
+	new_user->realname = "";
 	new_user->socket = client_sock;
 	
 	struct timespec current_time;
@@ -404,11 +404,9 @@ void IRC_Server::parse_message(std::string &message, int &client_sock)
 		return;
 	}
 	
-	if ((user->nick[0] == '\1' || user->username[0] == '\1') && (type != NICK && type != USER && type != QUIT && type != PONG))
+	if ((user->nick.size() == 0 || user->username.size() == 0) && (type != NICK && type != USER && type != QUIT && type != PONG))
 	{
-		string output = ":" + hostname + " 451 " + parts[0] + " :You have not registered" + irc_ending;
-		
-		send_message(output, user);
+		send_error_message(user, ERR_ALREADYREGISTRED);
 		
 		return;
 	}
@@ -476,9 +474,20 @@ void IRC_Server::parse_nick(User* user, std::vector<std::string> parts)
 	using namespace std;
 	
 	if (parts.size() != 2)
+	{
+		if (parts.size() < 2)
+			send_error_message(user, ERR_NONICKNAMEGIVEN);
+		
 		return;
+	}
 	
 	string new_nick = parts[1];
+	
+	if (new_nick.find_first_not_of("01234567890QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm_-\[]{}`^|") || new_nick.find_first_of("0123456789-_") == 0)
+	{
+		send_error_message(user, ERR_ERRONEUSNICKNAME, new_nick);
+		return;
+	}
 	
 	pthread_mutex_lock(&ping_mutex);
 	
@@ -491,16 +500,7 @@ void IRC_Server::parse_nick(User* user, std::vector<std::string> parts)
 		
 		if (strncasecmp(exist_user->nick.c_str(), new_nick.c_str(), new_nick.size()) == 0)
 		{
-			string output = ":" + hostname + " 433 ";
-			
-			if (user->nick[0] == '\1')
-				output += "*";
-			else
-				output += user->nick;
-			
-			output += " " + new_nick + " :Nickname is already in use." + irc_ending;
-			
-			send_message(output, user);
+			send_error_message(user, ERR_NICKNAMEINUSE, new_nick);
 			
 			pthread_mutex_unlock(&ping_mutex);
 			
@@ -513,7 +513,7 @@ void IRC_Server::parse_nick(User* user, std::vector<std::string> parts)
 	string old_nick = user->nick;
 	user->nick = new_nick;
 	
-	if (user->username[0] != '\1')
+	if (user->username.size() == 0)
 	{
 		string result = ":";
 		result += old_nick;
@@ -565,8 +565,28 @@ void IRC_Server::parse_user(User* user, std::vector<std::string> parts)
 {
 	using namespace std;
 	
-	if (parts.size() != 5 || user->username[0] != '\1')
+	if (parts.size() != 5)
+	{
+		if (parts.size() < 5)
+			send_error_message(user, ERR_NEEDMOREPARAMS, "USER");
+		
 		return;
+	}
+	
+	if (user->username.size() != 0 && user->nick.size() != 0)
+	{
+		send_error_message(user, ERR_ALREADYREGISTRED);
+		return;
+	}
+	
+	if (parts.find_first_not_of("0123456789qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM_-.") != string::npos)
+	{
+		string output = "ERROR :Closing Link: " + user->nick + "[" + user->hostname + "] (Hostile username.  Please only use 0-9 a-z A-Z _ - and . in your username.)" + irc_ending;
+		
+		send_message(output, user);
+		disconnect_client(user->socket);
+		return;
+	}
 	
 	user->username = parts[1];
 	user->realname = parts[4];
@@ -601,7 +621,12 @@ void IRC_Server::parse_join(User* user, std::vector<std::string> parts)
 	using namespace std;
 	
 	if (parts.size() != 2 && parts.size() != 3)
+	{
+		if (parts.size() < 2)
+			send_error_message(user, ERR_NEEDMOREPARAMS, "JOIN");
+		
 		return;
+	}
 	
 	string result = ":";
 	result += user->nick;
@@ -622,9 +647,7 @@ void IRC_Server::parse_join(User* user, std::vector<std::string> parts)
 		
 		if (channel[0] != '#')
 		{
-			string output = ":" + hostname + " 403 " + user->nick + " " + channel + " :No such channel";
-			
-			send_message(output, user);
+			send_error_message(user, ERR_NOSUCHCHANNEL, channel);
 			
 			continue;
 		}
@@ -692,9 +715,7 @@ void IRC_Server::parse_part(User* user, std::vector<std::string> parts)
 		
 		if (channel[0] != '#')
 		{
-			string output = ":" + hostname + " 403 " + user->nick + " " + channel + " :No such channel";
-			
-			send_message(output, user);
+			send_error_message(user, ERR_NOSUCHCHANNEL, channel);
 			
 			continue;
 		}
@@ -723,6 +744,8 @@ void IRC_Server::parse_part(User* user, std::vector<std::string> parts)
 						(*it)->users.erase(channel_it);
 					}
 				}
+				else
+					send_error_message(user, ERR_NOTONCHANNEL, channel);
 				
 				if ((*it)->users.size() == 0)
 					it = channels.erase(it);
@@ -735,9 +758,7 @@ void IRC_Server::parse_part(User* user, std::vector<std::string> parts)
 		
 		if (found == false)
 		{
-			string output = ":" + hostname + " 403 " + user->nick + " " + channel + " :No such channel";
-			
-			send_message(output, user);
+			send_error_message(user, ERR_NOSUCHCHANNEL, channel);
 			continue;
 		}
 		
@@ -851,6 +872,27 @@ void IRC_Server::parse_list(User* user, std::vector<std::string> parts)
 	send_message(end_of_list, user);
 }
 
+void IRC_Server::parse_names(User* user, std::vector<std::string> parts)
+{
+	using namespace std;
+	
+	if (parts.size() == 0 || parts.size() > 2)
+		return;
+	
+	string channel = "*";
+	
+	if (parts.size() == 2)
+		channel = parts[1];
+	
+	if (channel.find(",") != string::npos)
+	{
+		send_error_message(user, ERR_TOOMANYTARGETS, channel);
+		return;
+	}
+	
+	
+}
+
 void IRC_Server::parse_quit(User* user, std::vector<std::string> parts)
 {
 	using namespace std;
@@ -885,4 +927,297 @@ void IRC_Server::parse_quit(User* user, std::vector<std::string> parts)
 	string output = ":" + temp_user->nick + "!" + temp_user->username + "@" + temp_user->hostname + " QUIT :" + quit + irc_ending;
 	
 	broadcast_message(output, temp_user->channels);
+}
+
+/*
+enum Error_Type
+{
+	ERR_NOSUCHNICK = 401,
+	ERR_NOSUCHSERVER = 402,
+	ERR_NOSUCHCHANNEL = 403,
+	ERR_CANNOTSENDTOCHAN = 404,
+	ERR_TOOMANYCHANNELS = 405,
+	ERR_WASNOSUCHNICK = 406,
+	ERR_TOOMANYTARGETS = 407,
+	ERR_NOORIGIN = 409,
+	ERR_NORECIPIENT = 411,
+	ERR_NOTEXTTOSEND = 412,
+	ERR_NOTOPLEVEL = 412,
+	ERR_WILDTOPLEVEL = 414,
+	ERR_UNKNOWNCOMMAND = 421,
+	ERR_NOMOTD = 422,
+	ERR_NOADMININFO = 423,
+	ERR_FILEERROR = 424,
+	ERR_NONICKNAMEGIVEN = 431,
+	ERR_ERRONEUSNICKNAME = 431,
+	ERR_NICKNAMEINUSE = 433,
+	ERR_NICKCOLLISION = 436,
+	ERR_USERNOTINCHANNEL = 441,
+	ERR_NOTONCHANNEL = 442,
+	ERR_USERONCHANNEL = 443,
+	ERR_NOLOGIN = 444,
+	ERR_SUMMONDISABLED = 445,
+	ERR_USERSDISABLED = 446,
+	ERR_NOTREGISTERED = 451,
+	ERR_NEEDMOREPARAMS = 461,
+	ERR_ALREADYREGISTRED = 461,
+	ERR_NOPERMFORHOST = 463,
+	ERR_PASSWDMISMATCH = 464,
+	ERR_YOUREBANNEDCREEP = 465,
+	ERR_KEYSET = 467,
+	ERR_CHANNELISFULL = 471,
+	ERR_UNKNOWNMODE = 472,
+	ERR_INVITEONLYCHAN = 472,
+	ERR_BANNEDFROMCHAN = 474,
+	ERR_BADCHANNELKEY = 475,
+	ERR_NOPRIVILEGES = 481,
+	ERR_CHANOPPRIVSNEEDED = 482,
+	ERR_CANTKILLSERVER = 483,
+	ERR_NOOPERHOST = 491,
+	ERR_UMODEUNKNOWNFLAG = 501,
+	ERR_USERSDONTMATCH = 502
+};
+*/
+
+void IRC_Server::send_error_message(User* user, Error_Type error, std::string arg1, std::string arg2)
+{
+	using namespace std;
+	
+	if (user == NULL)
+		return;
+	
+	string output = ":" + hostname + " " + error + " ";
+	
+	switch (error)
+	{
+		case ERR_NOSUCHNICK:
+		{
+			output += arg1 + " :No such nick/channel";
+			break;
+		}
+		case ERR_NOSUCHSERVER:
+		{
+			output += arg1 + " :No such server";
+			break;
+		}
+		case ERR_NOSUCHCHANNEL:
+		{
+			output += arg1 + " :No such channel";
+			break;
+		}
+		case ERR_CANNOTSENDTOCHAN:
+		{
+			output += arg1 + " :Cannot send to channel"
+			break;
+		}
+		case ERR_TOOMANYCHANNELS:
+		{
+			output += arg1 + " :You have joined too many channels";
+			break;
+		}
+		case ERR_WASNOSUCHNICK:
+		{
+			output += arg1 + " :There was no such nickname";
+			break;
+		}
+		case ERR_TOOMANYTARGETS:
+		{
+			output += arg1 + " :Duplicate recipients. No message delivered";
+			break;
+		}
+		case ERR_NOORIGIN:
+		{
+			output += ":No origin specified";
+			break;
+		}
+		case ERR_NORECIPIENT:
+		{
+			output += ":No recipient given (" + arg1 + ")";
+			break;
+		}
+		case ERR_NOTEXTTOSEND:
+		{
+			output += ":No text to send";
+			break;
+		}
+		case ERR_NOTOPLEVEL:
+		{
+			output += arg1 + ":No toplevel domain specified";
+			break;
+		}
+		case ERR_WILDTOPLEVEL:
+		{
+			output += arg1 + " :Wildcard in toplevel domain";
+			break;
+		}
+		case ERR_UNKNOWNCOMMAND:
+		{
+			output += arg1 + " :Unknown command";
+			break;
+		}
+		case ERR_NOMOTD:
+		{
+			output += ":MOTD File is missing";
+			break;
+		}
+		case ERR_NOADMININFO:
+		{
+			output += arg1 + " :No administrative info available";
+			break;
+		}
+		case ERR_FILEERROR:
+		{
+			output += ":File error doing " + arg1 + " on " + arg2;
+			break;
+		}
+		case ERR_NONICKNAMEGIVEN:
+		{
+			output += ":No nickname given";
+			break;
+		}
+		case ERR_ERRONEUSNICKNAME:
+		{
+			output += arg1 + " :Erroneus nickname";
+			break;
+		}
+		case ERR_NICKNAMEINUSE:
+		{
+			output += arg1 + " :Nickname is already in use";
+			break;
+		}
+		case ERR_NICKCOLLISION:
+		{
+			output += arg1 + " :Nickname collision KILL";
+			break;
+		}
+		case ERR_USERNOTINCHANNEL:
+		{
+			output += arg1 + " " + arg2 + " :They aren't on that channel";
+			break;
+		}
+		case ERR_NOTONCHANNEL:
+		{
+			output += arg1 + " :You're not on that channel";
+			break;
+		}
+		case ERR_USERONCHANNEL:
+		{
+			output += arg1 + " " + arg2 + " :is already on channel";
+			break;
+		}
+		case ERR_NOLOGIN:
+		{
+			output += arg1 + " :User not logged in";
+			break;
+		}
+		case ERR_SUMMONDISABLED:
+		{
+			output += ":SUMMON has been disabled";
+			break;
+		}
+		case ERR_USERSDISABLED:
+		{
+			output += ":USERS has been disabled";
+			break;
+		}
+		case ERR_NOTREGISTERED:
+		{
+			output += ":You have not registered";
+			break;
+		}
+		case ERR_NEEDMOREPARAMS:
+		{
+			output += arg1 + " :Not enough parameters";
+			break;
+		}
+		case ERR_ALREADYREGISTRED:
+		{
+			output += ":You may not reregister";
+			break;
+		}
+		case ERR_NOPERMFORHOST:
+		{
+			output += ":Your host isn't among the privileged";
+			break;
+		}
+		case ERR_PASSWDMISMATCH:
+		{
+			output += ":Password incorrect";
+			break;
+		}
+		case ERR_YOUREBANNEDCREEP:
+		{
+			output += ":You are banned from this server";
+			break;
+		}
+		case ERR_KEYSET:
+		{
+			output += arg1 + " :Channel key already set";
+			break;
+		}
+		case ERR_CHANNELISFULL:
+		{
+			output += arg1 + " :Cannot join channel (+l)";
+			break;
+		}
+		case ERR_UNKNOWNMODE:
+		{
+			output += arg1 + " :is unknown mode char to me";
+			break;
+		}
+		case ERR_INVITEONLYCHAN:
+		{
+			output += arg1 + " :Cannot join channel (+i)";
+			break;
+		}
+		case ERR_BANNEDFROMCHAN:
+		{
+			output += arg1 + " :Cannot join channel (+b)";
+			break;
+		}
+		case ERR_BADCHANNELKEY:
+		{
+			output += arg1 + " :Cannot join channel (+k)";
+			break;
+		}
+		case ERR_NOPRIVILEGES:
+		{
+			output += ":Permission Denied- You're not an IRC operator";
+			break;
+		}
+		case ERR_CHANOPPRIVSNEEDED:
+		{
+			output += arg1 + " :You're not channel operator";
+			break;
+		}
+		case ERR_CANTKILLSERVER:
+		{
+			output += ":You can't kill a server!";
+			break;
+		}
+		case ERR_NOOPERHOST:
+		{
+			output += ":No O-lines for your host";
+			break;
+		}
+		case ERR_UMODEUNKNOWNFLAG:
+		{
+			output += ":Unknown MODE flag";
+			break;
+		}
+		case ERR_USERSDONTMATCH:
+		{
+			output += ":Can't change mode for other users";
+			break;
+		}
+		default:
+		{
+			cerr << "Invalid error code: " << error << endl;
+			return;
+		}
+	}
+	
+	output += irc_ending;
+	
+	send_message(output, user);
 }

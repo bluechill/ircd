@@ -5,6 +5,7 @@
 
 #include <string>
 #include <set>
+#include <map>
 
 class IRC_Server : public Server
 {
@@ -17,7 +18,8 @@ public:
 		
 		std::string topic;
 		
-		std::map<User*, std::vector<char> > users;
+		std::vector<User*> users;
+		std::map<User*, std::vector<char> > users_to_modes;
 	};
 	
 	struct User {
@@ -59,6 +61,7 @@ public:
 	void parse_part(User* user, std::vector<std::string> parts);
 	void parse_privmsg(User* user, std::vector<std::string> parts);
 	void parse_list(User* user, std::vector<std::string> parts);
+	void parse_names(User* user, std::vector<std::string> parts);
 	void parse_quit(User* user, std::vector<std::string> parts);
 	
 	struct ping_thread_struct
@@ -69,6 +72,56 @@ public:
 	};
 	
 	std::string get_hostname() { return hostname; }
+	
+	enum Error_Type
+	{
+		ERR_NOSUCHNICK = 401,
+		ERR_NOSUCHSERVER = 402,
+		ERR_NOSUCHCHANNEL = 403,
+		ERR_CANNOTSENDTOCHAN = 404,
+		ERR_TOOMANYCHANNELS = 405,
+		ERR_WASNOSUCHNICK = 406,
+		ERR_TOOMANYTARGETS = 407,
+		ERR_NOORIGIN = 409,
+		ERR_NORECIPIENT = 411,
+		ERR_NOTEXTTOSEND = 412,
+		ERR_NOTOPLEVEL = 412,
+		ERR_WILDTOPLEVEL = 414,
+		ERR_UNKNOWNCOMMAND = 421,
+		ERR_NOMOTD = 422,
+		ERR_NOADMININFO = 423,
+		ERR_FILEERROR = 424,
+		ERR_NONICKNAMEGIVEN = 431,
+		ERR_ERRONEUSNICKNAME = 431,
+		ERR_NICKNAMEINUSE = 433,
+		ERR_NICKCOLLISION = 436,
+		ERR_USERNOTINCHANNEL = 441,
+		ERR_NOTONCHANNEL = 442,
+		ERR_USERONCHANNEL = 443,
+		ERR_NOLOGIN = 444,
+		ERR_SUMMONDISABLED = 445,
+		ERR_USERSDISABLED = 446,
+		ERR_NOTREGISTERED = 451,
+		ERR_NEEDMOREPARAMS = 461,
+		ERR_ALREADYREGISTRED = 461,
+		ERR_NOPERMFORHOST = 463,
+		ERR_PASSWDMISMATCH = 464,
+		ERR_YOUREBANNEDCREEP = 465,
+		ERR_KEYSET = 467,
+		ERR_CHANNELISFULL = 471,
+		ERR_UNKNOWNMODE = 472,
+		ERR_INVITEONLYCHAN = 472,
+		ERR_BANNEDFROMCHAN = 474,
+		ERR_BADCHANNELKEY = 475,
+		ERR_NOPRIVILEGES = 481,
+		ERR_CHANOPPRIVSNEEDED = 482,
+		ERR_CANTKILLSERVER = 483,
+		ERR_NOOPERHOST = 491,
+		ERR_UMODEUNKNOWNFLAG = 501,
+		ERR_USERSDONTMATCH = 502
+	};
+	
+	void send_error_message(User* user, Error_Type error, std::string arg1 = "", std::string arg2 = "");
 	
 private:
 	std::string hostname;
