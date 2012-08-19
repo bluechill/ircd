@@ -6,7 +6,7 @@ CFLAGS=-g
 CXXFLAGS=$(CFLAGS)
 LDFLAGS=-lpthread
 
-OBJECTS=Server.o IRC_Server.o main.o
+OBJECTS=Server.o IRC_Server.o Plugin.o main.o
 
 PROG=ircd
 

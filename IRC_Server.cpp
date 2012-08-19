@@ -975,56 +975,6 @@ void IRC_Server::parse_quit(User* user, std::vector<std::string> parts)
 	broadcast_message(output, temp_user->channels);
 }
 
-/*
-enum Error_Type
-{
-	ERR_NOSUCHNICK = 401,
-	ERR_NOSUCHSERVER = 402,
-	ERR_NOSUCHCHANNEL = 403,
-	ERR_CANNOTSENDTOCHAN = 404,
-	ERR_TOOMANYCHANNELS = 405,
-	ERR_WASNOSUCHNICK = 406,
-	ERR_TOOMANYTARGETS = 407,
-	ERR_NOORIGIN = 409,
-	ERR_NORECIPIENT = 411,
-	ERR_NOTEXTTOSEND = 412,
-	ERR_NOTOPLEVEL = 412,
-	ERR_WILDTOPLEVEL = 414,
-	ERR_UNKNOWNCOMMAND = 421,
-	ERR_NOMOTD = 422,
-	ERR_NOADMININFO = 423,
-	ERR_FILEERROR = 424,
-	ERR_NONICKNAMEGIVEN = 431,
-	ERR_ERRONEUSNICKNAME = 431,
-	ERR_NICKNAMEINUSE = 433,
-	ERR_NICKCOLLISION = 436,
-	ERR_USERNOTINCHANNEL = 441,
-	ERR_NOTONCHANNEL = 442,
-	ERR_USERONCHANNEL = 443,
-	ERR_NOLOGIN = 444,
-	ERR_SUMMONDISABLED = 445,
-	ERR_USERSDISABLED = 446,
-	ERR_NOTREGISTERED = 451,
-	ERR_NEEDMOREPARAMS = 461,
-	ERR_ALREADYREGISTRED = 461,
-	ERR_NOPERMFORHOST = 463,
-	ERR_PASSWDMISMATCH = 464,
-	ERR_YOUREBANNEDCREEP = 465,
-	ERR_KEYSET = 467,
-	ERR_CHANNELISFULL = 471,
-	ERR_UNKNOWNMODE = 472,
-	ERR_INVITEONLYCHAN = 472,
-	ERR_BANNEDFROMCHAN = 474,
-	ERR_BADCHANNELKEY = 475,
-	ERR_NOPRIVILEGES = 481,
-	ERR_CHANOPPRIVSNEEDED = 482,
-	ERR_CANTKILLSERVER = 483,
-	ERR_NOOPERHOST = 491,
-	ERR_UMODEUNKNOWNFLAG = 501,
-	ERR_USERSDONTMATCH = 502
-};
-*/
-
 void IRC_Server::send_error_message(User* user, Error_Type error, std::string arg1, std::string arg2)
 {
 	using namespace std;
@@ -1074,6 +1024,11 @@ void IRC_Server::send_error_message(User* user, Error_Type error, std::string ar
 			output += arg1 + " :Duplicate recipients. No message delivered";
 			break;
 		}
+		case ERR_NOSUCHSERVICE:
+		{
+			output += arg1 + " :No such service";
+			break;
+		}
 		case ERR_NOORIGIN:
 		{
 			output += ":No origin specified";
@@ -1097,6 +1052,11 @@ void IRC_Server::send_error_message(User* user, Error_Type error, std::string ar
 		case ERR_WILDTOPLEVEL:
 		{
 			output += arg1 + " :Wildcard in toplevel domain";
+			break;
+		}
+		case ERR_BADMASK:
+		{
+			output += arg1 + " :Bad Server/host mask";
 			break;
 		}
 		case ERR_UNKNOWNCOMMAND:
@@ -1137,6 +1097,11 @@ void IRC_Server::send_error_message(User* user, Error_Type error, std::string ar
 		case ERR_NICKCOLLISION:
 		{
 			output += arg1 + " :Nickname collision KILL";
+			break;
+		}
+		case ERR_UNAVAILRESOURCE:
+		{
+			output += arg1 + " :Nick/channel is temporarily unavailable";
 			break;
 		}
 		case ERR_USERNOTINCHANNEL:
@@ -1199,6 +1164,10 @@ void IRC_Server::send_error_message(User* user, Error_Type error, std::string ar
 			output += ":You are banned from this server";
 			break;
 		}
+		case ERR_YOUWILLBEBANNED:
+		{
+			break;
+		}
 		case ERR_KEYSET:
 		{
 			output += arg1 + " :Channel key already set";
@@ -1229,6 +1198,21 @@ void IRC_Server::send_error_message(User* user, Error_Type error, std::string ar
 			output += arg1 + " :Cannot join channel (+k)";
 			break;
 		}
+		case ERR_BADCHANMASK:
+		{
+			output += arg1 + " :Bad Channel Mask";
+			break;
+		}
+		case ERR_NOCHANMODES:
+		{
+			output += arg1 + " :Channel doesn't support modes";
+			break;
+		}
+		case ERR_BANLISTFULL:
+		{
+			output += arg1 + " " + arg2 + " :Channel list is full";
+			break;
+		}
 		case ERR_NOPRIVILEGES:
 		{
 			output += ":Permission Denied- You're not an IRC operator";
@@ -1242,6 +1226,16 @@ void IRC_Server::send_error_message(User* user, Error_Type error, std::string ar
 		case ERR_CANTKILLSERVER:
 		{
 			output += ":You can't kill a server!";
+			break;
+		}
+		case ERR_RESTRICTED:
+		{
+			output += ":Your connection is restricted!";
+			break;
+		}
+		case ERR_UNQOPPRIVSNEEDED:
+		{
+			output += ":You're not the original channel operator";
 			break;
 		}
 		case ERR_NOOPERHOST:
@@ -1258,7 +1252,7 @@ void IRC_Server::send_error_message(User* user, Error_Type error, std::string ar
 		{
 			output += ":Can't change mode for other users";
 			break;
-		}
+		}	
 		default:
 		{
 			cerr << "Invalid error code: " << error << endl;
