@@ -684,7 +684,7 @@ void IRC_Server::parse_nick(User* user, std::vector<std::string> parts)
 	{
 		string random = "";
 		
-		for (int i = 0;i < 9;i++)
+		for (int i = 0;i < 8;i++)
 		{
 			int num = rand()%42 + 48;
 			
