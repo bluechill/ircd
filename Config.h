@@ -42,6 +42,7 @@ public:
 	void setElement(std::string element, std::string contents);
 };
 
-int getdir(std::string dir, std::vector<std::string> files);
+int getdir(std::string dir, std::vector<std::string> &files);
+bool has_extension(std::string to_check, std::string ext);
 
 #endif

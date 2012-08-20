@@ -213,7 +213,10 @@ conf("plugins.conf")
 		
 		for (vector<string>::iterator it = files.begin();it != files.end();it++)
 		{
-			string path = plugins_directory + "/" + *it;
+			string path = *it;
+			
+			if (!has_extension(path, ".plugin"))
+				continue;
 			
 			IRC_Plugin* plugin = new IRC_Plugin(path, this);
 			
@@ -311,7 +314,8 @@ void IRC_Server::on_client_connect(int &client_sock)
 		
 		if (types_it != types.end())
 		{
-			IRC_Plugin::Result_Of_Call result = plugin->plugin_call(IRC_Plugin::ON_CLIENT_CONNECT, new_user, vector<string>());
+			vector<string> parts;
+			IRC_Plugin::Result_Of_Call result = plugin->plugin_call(IRC_Plugin::ON_CLIENT_CONNECT, new_user, parts);
 			
 			if (result == IRC_Plugin::FAILURE)
 				cerr << "Plugin failed (ON_CLIENT_CONNECT), see log for more details." << endl;
@@ -338,7 +342,8 @@ void IRC_Server::on_client_disconnect(int &client_socket)
 				
 				if (types_it != types.end())
 				{
-					IRC_Plugin::Result_Of_Call result = plugin->plugin_call(IRC_Plugin::ON_CLIENT_DISCONNECT, *it, vector<string>());
+					vector<string> parts;
+					IRC_Plugin::Result_Of_Call result = plugin->plugin_call(IRC_Plugin::ON_CLIENT_DISCONNECT, *it, parts);
 					
 					if (result == IRC_Plugin::FAILURE)
 						cerr << "Plugin failed (ON_CLIENT_DISCONNECT), see log for more details." << endl;
@@ -416,11 +421,6 @@ IRC_Server::Message_Type IRC_Server::string_to_message_type(std::string &message
 			return LIST;
 		else if (strncasecmp(message.c_str(), "QUIT", message.size()) == 0)
 			return QUIT;
-	}
-	else if (message.size() == 5)
-	{
-		if (strncasecmp(message.c_str(), "NAMES", message.size()) == 0)
-			return NAMES;
 	}
 	else if (message.size() == 7)
 	{
@@ -520,7 +520,7 @@ void IRC_Server::parse_message(std::string &message, int &client_sock)
 	{
 		IRC_Plugin* plugin = *it;
 		
-		IRC_Plugin::Result_Of_Call result = plugin->plugin_call(IRC_Plugin::BEFORE_MESSAGE_PARSE, user, vector<string>());
+		IRC_Plugin::Result_Of_Call result = plugin->plugin_call(IRC_Plugin::BEFORE_MESSAGE_PARSE, user, parts);
 		
 		if (result == IRC_Plugin::FAILURE)
 			cerr << "Plugin failed (BEFORE_MESSAGE_PARSE), see log for more details." << endl;
@@ -558,12 +558,6 @@ void IRC_Server::parse_message(std::string &message, int &client_sock)
 			
 			break;
 		}
-		case NAMES:
-		{
-			parse_names(user, parts);
-			
-			break;
-		}
 		case LIST:
 		{
 			parse_list(user, parts);
@@ -582,6 +576,7 @@ void IRC_Server::parse_message(std::string &message, int &client_sock)
 			
 			break;
 		}
+		case UNKNOWN:
 		default:
 		{
 			bool handled = false;
@@ -590,7 +585,7 @@ void IRC_Server::parse_message(std::string &message, int &client_sock)
 			{
 				IRC_Plugin* plugin = *it;
 				
-				IRC_Plugin::Result_Of_Call result = plugin->plugin_call(IRC_Plugin::ON_RECIEVE_MESSAGE, user, vector<string>());
+				IRC_Plugin::Result_Of_Call result = plugin->plugin_call(IRC_Plugin::ON_RECIEVE_MESSAGE, user, parts);
 				
 				if (result == IRC_Plugin::FAILURE)
 					cerr << "Plugin failed (ON_RECIEVE_MESSAGE), see log for more details." << endl;
@@ -614,7 +609,7 @@ void IRC_Server::parse_message(std::string &message, int &client_sock)
 	{
 		IRC_Plugin* plugin = *it;
 		
-		IRC_Plugin::Result_Of_Call result = plugin->plugin_call(IRC_Plugin::AFTER_MESSAGE_PARSE, user, vector<string>());
+		IRC_Plugin::Result_Of_Call result = plugin->plugin_call(IRC_Plugin::AFTER_MESSAGE_PARSE, user, parts);
 		
 		if (result == IRC_Plugin::FAILURE)
 			cerr << "Plugin failed (AFTER_MESSAGE_PARSE), see log for more details." << endl;
@@ -1024,75 +1019,6 @@ void IRC_Server::parse_list(User* user, std::vector<std::string> parts)
 	}
 	
 	send_message(end_of_list, user);
-}
-
-void IRC_Server::parse_names(User* user, std::vector<std::string> parts)
-{
-	using namespace std;
-	
-	if (parts.size() == 0 || parts.size() > 2)
-		return;
-	
-	string channel = "*";
-	
-	if (parts.size() == 2)
-		channel = parts[1];
-	
-	if (channel.find(",") != string::npos)
-	{
-		send_error_message(user, ERR_TOOMANYTARGETS, channel);
-		return;
-	}
-	
-	if (channel != "*" && channel[0] == '#')
-	{
-		string list_of_users = ":" + hostname + " 353 " + user->nick + " = " + channel + " :";
-		
-		bool found_channel = false;
-		
-		for (vector<Channel*>::iterator it = channels.begin();it != channels.end();it++)
-		{
-			Channel* chan = *it;;
-			
-			if (chan->name.size() != channel.size())
-				continue;
-			
-			if (strncasecmp(chan->name.c_str(), channel.c_str(), channel.size()) == 0)
-			{
-				found_channel = true;
-				
-				string users = "";
-				
-				bool found = false;
-				
-				for (vector<User*>::iterator jt = chan->users.begin();jt != chan->users.end();jt++)
-				{
-					User* usr = *jt;
-					
-					users += usr->nick;
-					if ((jt + 1) != chan->users.end())
-						users += " ";
-					
-					if (user->nick.size() != user->nick.size())
-						continue;
-					
-					if (strncasecmp(usr->nick.c_str(), user->nick.c_str(), usr->nick.size()) == 0)
-						found = true;
-				}
-				
-				if (found)
-					list_of_users += users + irc_ending;
-				
-				break;
-			}
-		}
-		
-		if (found_channel)
-			send_message(list_of_users, user);
-	}
-	
-	string end_of_names = ":" + hostname + " 366 " + user->nick + " " + channel + " :End of /NAMES list." + irc_ending;
-	send_message(end_of_names, user);
 }
 
 void IRC_Server::parse_quit(User* user, std::vector<std::string> parts)

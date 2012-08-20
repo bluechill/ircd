@@ -192,7 +192,25 @@ void Config::closeFiles()
     }
 }
 
-int getdir(std::string dir, std::vector<std::string> files)
+bool has_extension(std::string to_check, std::string ext)
+{
+	using namespace std;
+	
+	if (to_check.size() < ext.size())
+		return false;
+	
+	size_t location = to_check.find(ext);
+	
+	if (location == string::npos)
+		return false;
+	
+	if (location != to_check.size()-ext.size())
+		return false;
+	
+	return true;
+}
+
+int getdir(std::string dir, std::vector<std::string> &files)
 {
 	using namespace std;
 	
@@ -208,18 +226,21 @@ int getdir(std::string dir, std::vector<std::string> files)
 	
     while ((dirp = readdir(dp)) != NULL) {
 		struct stat st_buf;
-		int status = stat(dirp->d_name, &st_buf);
+		
+		string file_name = dir + "/" + string(dirp->d_name);
+		
+		int status = stat(file_name.c_str(), &st_buf);
 		
 		if (status != 0)
 		{
-			cerr << "Error stat'ing file: " << strerror(errno) << endl;
+			cerr << "Error stat'ing file (" + file_name + "): " << strerror(errno) << endl;
 			continue;
 		}
 		
 		if (S_ISDIR(st_buf.st_mode))
 			continue;
 		
-        files.push_back(string(dirp->d_name));
+        files.push_back(file_name);
     }
 	
     closedir(dp);

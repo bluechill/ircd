@@ -34,13 +34,13 @@ public:
 	
 	std::vector<Call_Type> get_supported_calls();
 	
-	Result_Of_Call plugin_call(Call_Type type, IRC_Server::User* user, std::vector<std::string> parts);
+	Result_Of_Call plugin_call(Call_Type type, IRC_Server::User* user, std::vector<std::string> &parts);
 	
 private:
 	std::vector<Call_Type> supported_calls;
 	
 	typedef std::vector<Call_Type> (*supported_calls_function)();
-	typedef Result_Of_Call (*plugin_call_function)(Call_Type type, IRC_Server::User* user, std::vector<std::string> parts, IRC_Server* link);
+	typedef Result_Of_Call (*plugin_call_function)(Call_Type type, IRC_Server::User* user, std::vector<std::string> &parts, IRC_Server* link);
 	
 	supported_calls_function scf;
 	plugin_call_function pcf;

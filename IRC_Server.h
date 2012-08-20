@@ -65,7 +65,6 @@ public:
 	void parse_part(User* user, std::vector<std::string> parts);
 	void parse_privmsg(User* user, std::vector<std::string> parts);
 	void parse_list(User* user, std::vector<std::string> parts);
-	void parse_names(User* user, std::vector<std::string> parts);
 	void parse_quit(User* user, std::vector<std::string> parts);
 	
 	struct ping_thread_struct
@@ -136,6 +135,9 @@ public:
 	
 	void send_error_message(User* user, Error_Type error, std::string arg1 = "", std::string arg2 = "");
 	
+	std::vector<User*> get_users() { return users; }
+	std::vector<Channel*> get_channels() { return channels; }
+	
 private:
 	std::string hostname;
 	
@@ -146,7 +148,6 @@ private:
 		PONG,
 		JOIN,
 		PART,
-		NAMES,
 		PRIVMSG,
 		LIST,
 		QUIT,

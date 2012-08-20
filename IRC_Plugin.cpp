@@ -40,7 +40,7 @@ std::vector<IRC_Plugin::Call_Type> IRC_Plugin::get_supported_calls()
 	return scf();
 }
 
-IRC_Plugin::Result_Of_Call IRC_Plugin::plugin_call(Call_Type type, IRC_Server::User* user, std::vector<std::string> parts)
+IRC_Plugin::Result_Of_Call IRC_Plugin::plugin_call(Call_Type type, IRC_Server::User* user, std::vector<std::string> &parts)
 {
 	if (!valid)
 		return FAILURE;
