@@ -47,9 +47,10 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 		
 		bool found_channel = false;
 		
-		for (vector<IRC_Server::Channel*>::iterator it = link->get_channels().begin();it != link->get_channels().end();it++)
+		vector<IRC_Server::Channel*> link_channels = link->get_channels();
+		for (vector<IRC_Server::Channel*>::iterator it = link_channels.begin();it != link_channels.end();it++)
 		{
-			IRC_Server::Channel* chan = *it;;
+			IRC_Server::Channel* chan = *it;
 			
 			if (chan->name.size() != channel.size())
 				continue;
