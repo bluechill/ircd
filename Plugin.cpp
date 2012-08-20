@@ -13,7 +13,8 @@ Plugin::Plugin(std::string path)
 
 Plugin::~Plugin()
 {
-	dlclose(handle);
+	if (handle != NULL)
+		dlclose(handle);
 }
 	
 void* Plugin::get_plugin_handle()

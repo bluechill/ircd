@@ -4,6 +4,8 @@
 #include <sys/stat.h>
 #include <errno.h>
 
+#include <string.h>
+
 //Initialize the config class with the path to a config file
 Config::Config(std::string pathToConfigFile)
 {

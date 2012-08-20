@@ -1,11 +1,11 @@
-CC=clang++
+CC=g++
 CXX=$(CC)
 LD=$(CC)
 AR=ar
 
-CFLAGS=-g
+CFLAGS=-g -fPIC
 CXXFLAGS=$(CFLAGS)
-LDFLAGS=-lpthread
+LDFLAGS=-lpthread -ldl -lrt
 ARFLAGS=-cr
 
 IRCD_LIBRARY=IRCd.a

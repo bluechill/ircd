@@ -7,10 +7,14 @@
 #include <string>
 #include <sstream>
 
+#include <algorithm>
+
+#include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <stdlib.h>
 
 #include <time.h>
 #include <unistd.h>

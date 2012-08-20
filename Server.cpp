@@ -6,11 +6,14 @@
 #include <netinet/in.h>
 #include <unistd.h>
 
+#include <string.h>
 #include <errno.h>
 
 #include <iostream>
 
 #include <vector>
+
+#include <algorithm>
 
 typedef struct {
 	Server* server;
@@ -224,7 +227,7 @@ Server::Server(int port, Server_Type type, bool verbose)
 			throw IPv6_Initialization_Failure;
 		}
 		
-		server_name_ipv6.sin6_len = sizeof(struct sockaddr_in6);
+		//server_name_ipv6.sin6_len = sizeof(struct sockaddr_in6);
 		server_name_ipv6.sin6_family = AF_INET6;
 		server_name_ipv6.sin6_addr = in6addr_any;
 		server_name_ipv6.sin6_port = htons(port);

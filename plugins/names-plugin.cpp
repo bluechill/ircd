@@ -1,6 +1,8 @@
 #include "IRC_Server.h"
 #include "IRC_Plugin.h"
 
+#include <string.h>
+
 #include <vector>
 #include <string>
 
