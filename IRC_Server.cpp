@@ -494,7 +494,9 @@ void IRC_Server::parse_message(std::string &message, int &client_sock)
 			it->erase(0,1);
 			
 			for (vector<string>::iterator jt = it;jt != parts.end();jt++)
-				message += *jt;
+				message += *jt + " ";
+			
+			message.erase(message.size()-1);
 			
 			parts.erase(it, parts.end());
 			parts.push_back(message);
