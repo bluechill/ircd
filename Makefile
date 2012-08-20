@@ -1,9 +1,16 @@
+UNAME := $(shell uname)
+
+ifeq ($(UNAME), Linux)
 CC=g++
+endif
+
+ifeq ($(UNAME), Darwin)
+CC=clang++
+endif
+
 CXX=$(CC)
 LD=$(CC)
 AR=ar
-
-UNAME := $(shell uname)
 
 CFLAGS=-g -fPIC
 CXXFLAGS=$(CFLAGS)
