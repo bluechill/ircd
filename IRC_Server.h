@@ -51,29 +51,13 @@ public:
 	void recieve_message(std::string &message, int &client_sock);
 	
 	void send_message(std::string &message, User* user);
-	void broadcast_message(std::string &message, std::vector<User*> users);
+	void broadcast_message(std::string &message, std::vector<User*> users, bool lock_message_mutex = true);
 	
-	void broadcast_message(std::string &message, Channel* users);
-	void broadcast_message(std::string &message, std::vector<Channel*> channels);
+	void broadcast_message(std::string &message, Channel* users, bool lock_message_mutex = true);
+	void broadcast_message(std::string &message, std::vector<Channel*> channels, bool lock_message_mutex = true);
 	
 	static const std::string irc_ending;
-	
-	void parse_nick(User* user, std::vector<std::string> parts);
-	void parse_user(User* user, std::vector<std::string> parts);
-	void parse_pong(User* user, std::vector<std::string> parts);
-	void parse_join(User* user, std::vector<std::string> parts);
-	void parse_part(User* user, std::vector<std::string> parts);
-	void parse_privmsg(User* user, std::vector<std::string> parts);
-	void parse_list(User* user, std::vector<std::string> parts);
-	void parse_quit(User* user, std::vector<std::string> parts);
-	
-	struct ping_thread_struct
-	{
-		std::vector<User*> *users;
-		pthread_mutex_t *ping_mutex;
-		IRC_Server* server_handle;
-	};
-	
+		
 	std::string get_hostname() { return hostname; }
 	
 	enum Error_Type
@@ -135,8 +119,13 @@ public:
 	
 	void send_error_message(User* user, Error_Type error, std::string arg1 = "", std::string arg2 = "");
 	
-	std::vector<User*> get_users() { return users; }
-	std::vector<Channel*> get_channels() { return channels; }
+	std::vector<User*>* get_users() { return &users; }
+	std::vector<Channel*>* get_channels() { return &channels; }
+	
+	struct timespec get_current_time();
+	
+	void lock_message_mutex() { pthread_mutex_lock(&message_mutex); }
+	void unlock_message_mutex() { pthread_mutex_unlock(&message_mutex); }
 	
 private:
 	std::string hostname;
@@ -162,13 +151,12 @@ private:
 	std::vector<User*> users;
 	std::vector<Channel*> channels;
 	
-	pthread_t ping_thread;
-	pthread_mutex_t ping_mutex;
-	
 	void parse_message(std::string &message, int &client_sock);
 	
 	Config conf;
 	std::vector<IRC_Plugin*> plugins;
+	
+	pthread_mutex_t message_mutex;
 };
 
 #endif

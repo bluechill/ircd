@@ -14,6 +14,11 @@ extern "C" std::vector<IRC_Plugin::Call_Type> get_supported_calls()
 	return types;
 }
 
+extern "C" std::string name_of_plugin()
+{
+	return std::string("NAMES");
+}
+
 extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IRC_Server::User* user, std::vector<std::string> &parts, IRC_Server* link)
 {
 	using namespace std;
@@ -21,15 +26,15 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 	if (type != IRC_Plugin::ON_RECIEVE_MESSAGE)
 		return IRC_Plugin::NOT_HANDLED;
 	
+	if (parts.size() == 0 || parts.size() > 2)
+		return IRC_Plugin::NOT_HANDLED;
+	
 	if (parts[0].size() != 5)
 		return IRC_Plugin::NOT_HANDLED;
 	
 	if (strncasecmp(parts[0].c_str(), "NAMES", 5) != 0)
 		return IRC_Plugin::NOT_HANDLED;
-	
-	if (parts.size() == 0 || parts.size() > 2)
-		return IRC_Plugin::HANDLED;
-	
+
 	string channel = "*";
 	
 	if (parts.size() == 2)
@@ -47,8 +52,9 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 		
 		bool found_channel = false;
 		
-		vector<IRC_Server::Channel*> link_channels = link->get_channels();
-		for (vector<IRC_Server::Channel*>::iterator it = link_channels.begin();it != link_channels.end();it++)
+		vector<IRC_Server::Channel*>* link_channels = link->get_channels();
+		link->lock_message_mutex();
+		for (vector<IRC_Server::Channel*>::iterator it = link_channels->begin();it != link_channels->end();it++)
 		{
 			IRC_Server::Channel* chan = *it;
 			
@@ -84,6 +90,7 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 				break;
 			}
 		}
+		link->unlock_message_mutex();
 		
 		if (found_channel)
 			link->send_message(list_of_users, user);

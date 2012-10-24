@@ -30,7 +30,12 @@
 static double orwl_timebase = 0.0;
 static uint64_t orwl_timestart = 0;
 
-struct timespec orwl_gettime(void) {
+#endif
+
+struct timespec IRC_Server::get_current_time()
+{
+	struct timespec t;
+#ifdef __MACH__
 	// be more careful in a multithreaded environement
 	if (!orwl_timestart) {
 		mach_timebase_info_data_t tb = { 0 };
@@ -39,96 +44,18 @@ struct timespec orwl_gettime(void) {
 		orwl_timebase /= tb.denom;
 		orwl_timestart = mach_absolute_time();
 	}
-	struct timespec t;
+	
 	double diff = (mach_absolute_time() - orwl_timestart) * orwl_timebase;
 	t.tv_sec = diff * ORWL_NANO;
 	t.tv_nsec = diff - (t.tv_sec * ORWL_GIGA);
+#else
+	clock_gettime(CLOCK_MONOTONIC, &t);
+#endif
+	
 	return t;
 }
 
-#endif
-
 const std::string IRC_Server::irc_ending = "\r\n";
-
-void* ping_thread_function(void* data)
-{
-	using namespace std;
-	
-	IRC_Server::ping_thread_struct *pts = reinterpret_cast<IRC_Server::ping_thread_struct*>(data);
-	
-	vector<IRC_Server::User*>* users = pts->users;
-	pthread_mutex_t *ping_mutex = pts->ping_mutex;
-	IRC_Server* link = pts->server_handle;
-	
-	struct timespec current_time;
-	double double_current_time = 0.0;
-	
-	pthread_mutex_lock(ping_mutex);
-	
-	for (vector<IRC_Server::User*>::iterator it = users->begin();it != users->end();it++)
-		(*it)->ping_timer = -1;
-	
-	pthread_mutex_unlock(ping_mutex);
-	
-	while (true)
-	{
-		sleep(1);
-		
-#ifndef __MACH__
-		clock_gettime(CLOCK_MONOTONIC, &current_time);
-#else
-		current_time = orwl_gettime();
-#endif
-		
-		double_current_time = (double(current_time.tv_sec) + double(current_time.tv_nsec)/double(1E9));
-		
-		pthread_mutex_lock(ping_mutex);
-		
-		for (vector<IRC_Server::User*>::iterator it = users->begin();it != users->end();it++)
-		{
-			IRC_Server::User* user = *it;
-			
-			double user_time = user->ping_timer;
-			
-			if ((double_current_time - user_time) > double(30) &&
-				(double_current_time - user_time) < double(35) &&
-				!(user->nick.size() == 0 || user->username.size() == 0))
-			{
-				string ping_message = "PING :" + link->get_hostname() + IRC_Server::irc_ending;
-				
-				user->ping_timer -= 5;
-				user->ping_contents = link->get_hostname();
-				
-				link->send_message(ping_message, user);
-			}
-			else if ((double_current_time - user_time) > double(65))
-			{
-				string quit_message = "ERROR :Closing Link: " + user->nick + "[" + user->hostname + "] (Ping Timeout)" + IRC_Server::irc_ending;
-				
-				link->send_message(quit_message, user);
-				
-				IRC_Server::User* temp_user = new IRC_Server::User;
-				temp_user->channels = user->channels;
-				temp_user->nick = user->nick;
-				temp_user->username = user->username;
-				temp_user->hostname = user->hostname;
-				
-				pthread_mutex_unlock(ping_mutex);
-				link->disconnect_client(user->socket);
-				it--;
-				
-				string output = ":" + temp_user->nick + "!" + temp_user->username + "@" + temp_user->hostname + " QUIT :Ping Timeout" + IRC_Server::irc_ending;
-				
-				link->broadcast_message(output, temp_user->channels);
-				pthread_mutex_lock(ping_mutex);
-			}
-		}
-		
-		pthread_mutex_unlock(ping_mutex);
-	};
-	
-	delete pts;
-}
 
 IRC_Server::IRC_Server()
 : Server(6667, Server::Dual_IPv4_IPv6_Server, true),
@@ -138,7 +65,7 @@ conf("plugins.conf")
 	
 	srand(time(NULL));
 	
-	pthread_mutex_init(&ping_mutex, NULL);
+	pthread_mutex_init(&message_mutex, NULL);
 	
 	struct addrinfo hints, *info, *p;
 	int gai_result;
@@ -160,18 +87,6 @@ conf("plugins.conf")
 	}
 	
 	this->hostname = info->ai_canonname;
-	
-	ping_thread_struct *pts = new ping_thread_struct;
-	pts->users = &users;
-	pts->ping_mutex = &ping_mutex;
-	pts->server_handle = this;
-	
-	int status = pthread_create(&ping_thread, NULL, ping_thread_function, pts);
-	if (status)
-	{
-		cerr << "Failed to create ping thread with error: " << status << " (\"" << strerror(errno) << "\")" << endl;
-		throw Thread_Initialization_Failure;
-	}
 	
 	int last_line = 0;
 	for (int i = 0;;i++)
@@ -238,7 +153,7 @@ conf("plugins.conf")
 IRC_Server::~IRC_Server()
 {
 	pthread_exit(NULL);
-	pthread_mutex_destroy(&ping_mutex);
+	pthread_mutex_destroy(&message_mutex);
 	
 	for (std::vector<User*>::iterator it = users.begin();it != users.end();it++)
 		delete *it;
@@ -262,13 +177,9 @@ void IRC_Server::on_client_connect(int &client_sock)
 	
 	struct timespec current_time;
 	
-#ifndef __MACH__
-	clock_gettime(CLOCK_MONOTONIC, &current_time);
-#else
-	current_time = orwl_gettime();
-#endif
+	current_time = get_current_time();
 	
-	new_user->ping_timer = (double(current_time.tv_sec) + double(current_time.tv_nsec)/double(1E9));
+	new_user->ping_timer = (double(current_time.tv_sec) + double(current_time.tv_nsec)/double(1E9)) - 35;
 	
 	struct sockaddr_storage addr;
 	socklen_t length = sizeof(addr);
@@ -304,9 +215,9 @@ void IRC_Server::on_client_connect(int &client_sock)
 		}
 	}
 	
-	pthread_mutex_lock(&ping_mutex);
+	lock_message_mutex();
 	users.push_back(new_user);
-	pthread_mutex_unlock(&ping_mutex);
+	unlock_message_mutex();
 	
 	for (vector<IRC_Plugin*>::iterator it = plugins.begin();it != plugins.end();it++)
 	{
@@ -331,7 +242,7 @@ void IRC_Server::on_client_disconnect(int &client_socket)
 {
 	using namespace std;
 	
-	pthread_mutex_lock(&ping_mutex);
+	lock_message_mutex();
 	for (std::vector<User*>::iterator it = users.begin();it != users.end();it++)
 	{
 		if ((*it)->socket == client_socket)
@@ -359,7 +270,7 @@ void IRC_Server::on_client_disconnect(int &client_socket)
 			break;
 		}
 	}
-	pthread_mutex_unlock(&ping_mutex);
+	unlock_message_mutex();
 }
 
 void IRC_Server::recieve_message(std::string &message, int &client_sock)
@@ -388,23 +299,27 @@ void IRC_Server::send_message(std::string &message, User* user)
 	write(user->socket, message.c_str(), message.size());
 }
 
-void IRC_Server::broadcast_message(std::string &message, std::vector<User*> users)
+void IRC_Server::broadcast_message(std::string &message, std::vector<User*> users, bool lock_message_mutex)
 {
-	pthread_mutex_lock(&ping_mutex);
+	if (lock_message_mutex)
+		unlock_message_mutex();
+	
 	for (std::vector<User*>::iterator it = users.begin();it != users.end();it++)
 		send_message(message, *it);
-	pthread_mutex_unlock(&ping_mutex);
+	
+	if (lock_message_mutex)
+		unlock_message_mutex();
 }
 
-void IRC_Server::broadcast_message(std::string &message, Channel* users)
+void IRC_Server::broadcast_message(std::string &message, Channel* users, bool lock_message_mutex)
 {
-	broadcast_message(message, users->users);
+	broadcast_message(message, users->users, lock_message_mutex);
 }
 
-void IRC_Server::broadcast_message(std::string &message, std::vector<Channel*> channels)
+void IRC_Server::broadcast_message(std::string &message, std::vector<Channel*> channels, bool lock_message_mutex)
 {
 	for (std::vector<Channel*>::iterator it = channels.begin();it != channels.end();it++)
-		broadcast_message(message, (*it));
+		broadcast_message(message, (*it), lock_message_mutex);
 }
 
 IRC_Server::Message_Type IRC_Server::string_to_message_type(std::string &message)
@@ -437,16 +352,16 @@ IRC_Server::Message_Type IRC_Server::string_to_message_type(std::string &message
 
 IRC_Server::User* IRC_Server::sock_to_user(int &sock)
 {
-	pthread_mutex_lock(&ping_mutex);
+	unlock_message_mutex();
 	for (std::vector<User*>::iterator it = users.begin();it != users.end();it++)
 	{
 		if ((*it)->socket == sock)
 		{
-			pthread_mutex_unlock(&ping_mutex);
+			unlock_message_mutex();
 			return *it;
 		}
 	}
-	pthread_mutex_unlock(&ping_mutex);
+	unlock_message_mutex();
 	
 	return NULL;
 }
@@ -522,6 +437,7 @@ void IRC_Server::parse_message(std::string &message, int &client_sock)
 		return;
 	}
 	
+	bool parsed_message = false;
 	for (vector<IRC_Plugin*>::iterator it = plugins.begin();it != plugins.end();it++)
 	{
 		IRC_Plugin* plugin = *it;
@@ -530,85 +446,32 @@ void IRC_Server::parse_message(std::string &message, int &client_sock)
 		
 		if (result == IRC_Plugin::FAILURE)
 			cerr << "Plugin failed (BEFORE_MESSAGE_PARSE), see log for more details." << endl;
+		else if (result == IRC_Plugin::PARSED)
+			parsed_message = true;
 	}
 	
-	switch (type)
+	if (!parsed_message)
 	{
-		case NICK:
+		bool handled = false;
+		
+		for (vector<IRC_Plugin*>::iterator it = plugins.begin();it != plugins.end();it++)
 		{
-			parse_nick(user, parts);
+			IRC_Plugin* plugin = *it;
 			
-			break;
-		}
-		case USER:
-		{
-			parse_user(user, parts);
+			IRC_Plugin::Result_Of_Call result = plugin->plugin_call(IRC_Plugin::ON_RECIEVE_MESSAGE, user, parts);
 			
-			break;
-		}
-		case PONG:
-		{
-			parse_pong(user, parts);
+			if (result == IRC_Plugin::FAILURE)
+				cerr << "Plugin failed (ON_RECIEVE_MESSAGE), see log for more details." << endl;
 			
-			break;
-		}
-		case JOIN:
-		{
-			parse_join(user, parts);
-			
-			break;
-		}
-		case PART:
-		{
-			parse_part(user, parts);
-			
-			break;
-		}
-		case LIST:
-		{
-			parse_list(user, parts);
-			
-			break;
-		}
-		case QUIT:
-		{
-			parse_quit(user, parts);
-			
-			break;
-		}
-		case PRIVMSG:
-		{
-			parse_privmsg(user, parts);
-			
-			break;
-		}
-		case UNKNOWN:
-		default:
-		{
-			bool handled = false;
-			
-			for (vector<IRC_Plugin*>::iterator it = plugins.begin();it != plugins.end();it++)
+			if (result == IRC_Plugin::HANDLED)
 			{
-				IRC_Plugin* plugin = *it;
-				
-				IRC_Plugin::Result_Of_Call result = plugin->plugin_call(IRC_Plugin::ON_RECIEVE_MESSAGE, user, parts);
-				
-				if (result == IRC_Plugin::FAILURE)
-					cerr << "Plugin failed (ON_RECIEVE_MESSAGE), see log for more details." << endl;
-				
-				if (result == IRC_Plugin::HANDLED)
-				{
-					handled = true;
-					break;
-				}
-			}
-			
-			if (!handled)
-			{
-				cerr << "Invalid message: '" << message << "'" << endl;
+				handled = true;
 				break;
 			}
 		}
+		
+		if (!handled)
+			cerr << "Recieved potentially invalid message: '" << message << "'" << endl;
 	}
 	
 	for (vector<IRC_Plugin*>::iterator it = plugins.begin();it != plugins.end();it++)
@@ -620,447 +483,6 @@ void IRC_Server::parse_message(std::string &message, int &client_sock)
 		if (result == IRC_Plugin::FAILURE)
 			cerr << "Plugin failed (AFTER_MESSAGE_PARSE), see log for more details." << endl;
 	}
-}
-
-void IRC_Server::parse_nick(User* user, std::vector<std::string> parts)
-{
-	using namespace std;
-	
-	if (parts.size() != 2)
-	{
-		if (parts.size() < 2)
-			send_error_message(user, ERR_NONICKNAMEGIVEN);
-		
-		return;
-	}
-	
-	string new_nick = parts[1];
-	
-	if (new_nick.find_first_not_of("01234567890QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm_-\[]{}`^|") != string::npos || new_nick.find_first_of("0123456789-_") == 0)
-	{
-		send_error_message(user, ERR_ERRONEUSNICKNAME, new_nick);
-		return;
-	}
-	
-	pthread_mutex_lock(&ping_mutex);
-	
-	for (vector<User*>::iterator it = users.begin();it != users.end();it++)
-	{
-		User* exist_user = *it;
-		
-		if (exist_user->nick.size() != new_nick.size())
-			continue;
-		
-		if (strncasecmp(exist_user->nick.c_str(), new_nick.c_str(), new_nick.size()) == 0)
-		{
-			if (new_nick == user->nick)
-				break;
-			
-			send_error_message(user, ERR_NICKNAMEINUSE, new_nick);
-			
-			pthread_mutex_unlock(&ping_mutex);
-			
-			return;
-		}
-	}
-	
-	pthread_mutex_unlock(&ping_mutex);
-	
-	string old_nick = user->nick;
-	user->nick = new_nick;
-	
-	if (user->username.size() != 0)
-	{
-		string result = ":";
-		result += old_nick;
-		result += "!";
-		result += user->username;
-		result += "@";
-		result += user->hostname;
-		
-		result += " NICK :";
-		
-		result += user->nick;
-		
-		result += irc_ending;
-		
-		broadcast_message(result, user->channels);
-	}
-	else
-	{
-		string random = "";
-		
-		for (int i = 0;i < 8;i++)
-		{
-			int num = rand()%42 + 48;
-			
-			if (num >= 58 && num <= 64)
-				num += 7;
-			
-			random += char(num);
-		}
-		
-		string ping_message = "PING :" + random + IRC_Server::irc_ending;
-		
-		struct timespec current_time;
-		
-#ifndef __MACH__
-		clock_gettime(CLOCK_MONOTONIC, &current_time);
-#else
-		current_time = orwl_gettime();
-#endif
-		
-		user->ping_timer  = (double(current_time.tv_sec) + double(current_time.tv_nsec)/double(1E9));
-		user->ping_contents = random;
-		
-		send_message(ping_message, user);
-	}
-}
-
-void IRC_Server::parse_user(User* user, std::vector<std::string> parts)
-{
-	using namespace std;
-	
-	if (parts.size() != 5)
-	{
-		if (parts.size() < 5)
-			send_error_message(user, ERR_NEEDMOREPARAMS, "USER");
-		
-		return;
-	}
-	
-	if (user->username.size() != 0 && user->nick.size() != 0)
-	{
-		send_error_message(user, ERR_ALREADYREGISTRED);
-		return;
-	}
-	
-	if (parts[1].find_first_not_of("0123456789qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM_-.") != string::npos)
-	{
-		string output = "ERROR :Closing Link: " + user->nick + "[" + user->hostname + "] (Hostile username.  Please only use 0-9 a-z A-Z _ - and . in your username.)" + irc_ending;
-		
-		send_message(output, user);
-		disconnect_client(user->socket);
-		return;
-	}
-	
-	user->username = parts[1];
-	user->realname = parts[4];
-}
-
-void IRC_Server::parse_pong(User* user, std::vector<std::string> parts)
-{
-	using namespace std;
-	
-	if (parts.size() != 2)
-		return;
-	
-	std::string contents = parts[1];
-	
-	if (user->ping_contents == contents)
-	{
-		struct timespec current_time;
-		
-#ifndef __MACH__
-		clock_gettime(CLOCK_MONOTONIC, &current_time);
-#else
-		current_time = orwl_gettime();
-#endif
-		
-		user->ping_timer  = (double(current_time.tv_sec) + double(current_time.tv_nsec)/double(1E9));
-		user->ping_contents = "";
-	}
-}
-
-void IRC_Server::parse_join(User* user, std::vector<std::string> parts)
-{
-	using namespace std;
-	
-	if (parts.size() != 2 && parts.size() != 3)
-	{
-		if (parts.size() < 2)
-			send_error_message(user, ERR_NEEDMOREPARAMS, "JOIN");
-		
-		return;
-	}
-	
-	string result = ":";
-	result += user->nick;
-	result += "!";
-	result += user->username;
-	result += "@";
-	result += user->hostname;
-	
-	result += " JOIN :";
-	
-	string channels_string = parts[1];
-	for (int z = 0;z < channels_string.size();)
-	{
-		int next = channels_string.find(",", z);
-		
-		string channel = channels_string.substr(z, next);
-		z = next+1;
-		
-		if (channel[0] != '#')
-		{
-			send_error_message(user, ERR_NOSUCHCHANNEL, channel);
-			
-			continue;
-		}
-		
-		bool found = false;
-		
-		string message = result;
-		message += channel;
-		message += irc_ending;
-		
-		for (vector<Channel*>::iterator it = channels.begin();it != channels.end();it++)
-		{
-			if ((*it)->name == channel)
-			{
-				found = true;
-				
-				vector<User*>::iterator jt = find((*it)->users.begin(), (*it)->users.end(), user);
-				
-				if (jt != (*it)->users.end())
-					return;
-				
-				user->channels.push_back(*it);
-				(*it)->users.push_back(user);
-				
-				broadcast_message(message, *it);
-				break;
-			}
-		}
-		
-		if (!found)
-		{
-			Channel* new_channel = new Channel;
-			new_channel->name = channel;
-			new_channel->users.push_back(user);
-			
-			channels.push_back(new_channel);
-			user->channels.push_back(new_channel);
-			
-			broadcast_message(message, new_channel);
-		}
-		
-		if (next == string::npos)
-			break;
-	}
-}
-
-void IRC_Server::parse_part(User* user, std::vector<std::string> parts)
-{
-	using namespace std;
-	
-	if (parts.size() != 2)
-		return;
-	
-	string result = ":";
-	result += user->nick;
-	result += "!";
-	result += user->username;
-	result += "@";
-	result += user->hostname;
-	
-	result += " PART ";
-	
-	string channels_string = parts[1];
-	for (int z = 0;z < channels_string.size();)
-	{
-		int next = channels_string.find(",", z);
-		
-		string channel = channels_string.substr(z, next);
-		z = next+1;
-		
-		if (channel[0] != '#')
-		{
-			send_error_message(user, ERR_NOSUCHCHANNEL, channel);
-			
-			continue;
-		}
-		
-		string message = result;
-		message += channel;
-		message += irc_ending;
-		
-		bool found = false;
-		for (vector<Channel*>::iterator it = channels.begin();it != channels.end();it++)
-		{
-			if ((*it)->name == channel)
-			{
-				vector<Channel*>::iterator user_it = find(user->channels.begin(), user->channels.end(), *it);
-				
-				if (user_it != user->channels.end())
-				{
-					vector<User*>::iterator channel_it = find((*it)->users.begin(), (*it)->users.end(), user);
-					
-					user->channels.erase(user_it);
-					
-					if (channel_it != (*it)->users.end())
-					{
-						broadcast_message(message, *it);
-						
-						(*it)->users.erase(channel_it);
-					}
-				}
-				else
-					send_error_message(user, ERR_NOTONCHANNEL, channel);
-				
-				if ((*it)->users.size() == 0)
-					it = channels.erase(it);
-				
-				found = true;
-				
-				break;
-			}
-		}
-		
-		if (found == false)
-		{
-			send_error_message(user, ERR_NOSUCHCHANNEL, channel);
-			continue;
-		}
-		
-		if (next == string::npos)
-			break;
-	}
-}
-
-void IRC_Server::parse_privmsg(User* user, std::vector<std::string> parts)
-{
-	using namespace std;
-	
-	if (parts.size() != 3)
-		return;
-	
-	string result = ":";
-	result += user->nick;
-	result += "!";
-	result += user->username;
-	result += "@";
-	result += user->hostname;
-	
-	result += " PRIVMSG ";
-	
-	string channels_string = parts[1];
-	for (int z = 0;z < channels_string.size();)
-	{
-		int next = channels_string.find(",", z);
-		
-		string channel = channels_string.substr(z, next);
-		z = next+1;
-		
-		if (channel[0] != '#')
-			continue;
-		
-		string message = result;
-		message += channel;
-		message += " :";
-		message += parts[2];
-		message += irc_ending;
-		
-		for (vector<Channel*>::iterator it = channels.begin();it != channels.end();it++)
-		{
-			if ((*it)->name == channel)
-			{
-				vector<Channel*>::iterator user_it = find(user->channels.begin(), user->channels.end(), *it);
-				
-				if (user_it != user->channels.end())
-				{
-					vector<User*>::iterator channel_it = find((*it)->users.begin(), (*it)->users.end(), user);
-					
-					if (channel_it != (*it)->users.end())
-						broadcast_message(message, *user_it);
-				}
-				
-				break;
-			}
-		}
-		
-		if (next == string::npos)
-			break;
-	}
-}
-
-void IRC_Server::parse_list(User* user, std::vector<std::string> parts)
-{
-	using namespace std;
-	
-	if (parts.size() != 1)
-		return;
-	
-	string begin = ":" + hostname + " 32";
-	
-	string start_of_list = begin + "1 " + user->nick + " Channel :Users  Name" + irc_ending;
-	
-	string list_message_start = begin + "2 " + user->nick + " ";
-	
-	string end_of_list = begin + "3 " + user->nick + " :End of /LIST" + irc_ending;
-	
-	send_message(start_of_list, user);
-	
-	for (vector<Channel*>::iterator it = channels.begin();it != channels.end();it++)
-	{
-		Channel* chan = (*it);
-		
-		stringstream ss;
-		ss << chan->users.size();
-		
-		string message = list_message_start + chan->name + " " + ss.str() + " :";
-		
-		string modes = "[+";
-		
-		for (vector<char>::iterator jt = chan->modes.begin();jt != chan->modes.end();jt++)
-			modes += *jt;
-		
-		modes += "]";
-		
-		message += modes;
-		
-		message += " " + chan->topic + irc_ending;
-		
-		send_message(message, user);
-	}
-	
-	send_message(end_of_list, user);
-}
-
-void IRC_Server::parse_quit(User* user, std::vector<std::string> parts)
-{
-	using namespace std;
-	
-	string quit_message = "ERROR :Closing Link: " + user->nick + "[" + user->hostname + "] (Quit: ";
-	
-	string quit = "";
-	
-	if (parts.size() == 1)
-		quit += user->nick;
-	else
-	{
-		for (vector<string>::iterator it = parts.begin()+1;it != parts.end();it++)
-			quit += *it;
-	}
-	
-	quit_message += quit;
-	
-	quit_message += ")";
-	quit_message += irc_ending;
-	
-	send_message(quit_message, user);
-	
-	User* temp_user = new User;
-	temp_user->channels = user->channels;
-	temp_user->nick = user->nick;
-	temp_user->username = user->username;
-	temp_user->hostname = user->hostname;
-	
-	disconnect_client(user->socket);
-	
-	string output = ":" + temp_user->nick + "!" + temp_user->username + "@" + temp_user->hostname + " QUIT :" + quit + irc_ending;
-	
-	broadcast_message(output, temp_user->channels);
 }
 
 void IRC_Server::send_error_message(User* user, Error_Type error, std::string arg1, std::string arg2)

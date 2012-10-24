@@ -26,7 +26,8 @@ public:
 	{
 		FAILURE = -1,
 		NOT_HANDLED = 0,
-		HANDLED = 1
+		HANDLED = 1,
+		PARSED = 2
 	};
 	
 	IRC_Plugin(std::string path, IRC_Server* link);
@@ -36,14 +37,22 @@ public:
 	
 	Result_Of_Call plugin_call(Call_Type type, IRC_Server::User* user, std::vector<std::string> &parts);
 	
+	std::string get_name_of_plugin();
+	
 private:
 	std::vector<Call_Type> supported_calls;
 	
 	typedef std::vector<Call_Type> (*supported_calls_function)();
 	typedef Result_Of_Call (*plugin_call_function)(Call_Type type, IRC_Server::User* user, std::vector<std::string> &parts, IRC_Server* link);
+	typedef std::string (*name_of_plugin_function)();
+	typedef void (*init_function)(IRC_Server* link);
+	typedef void (*dealloc_function)();
 	
 	supported_calls_function scf;
 	plugin_call_function pcf;
+	name_of_plugin_function nop;
+	init_function init;
+	dealloc_function dealloc;
 	
 	IRC_Server* link;
 };
