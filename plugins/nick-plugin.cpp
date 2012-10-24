@@ -45,6 +45,12 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 		return IRC_Plugin::HANDLED;
 	}
 	
+	if (new_nick.size() > 255)
+	{
+		link->send_error_message(user, IRC_Server::ERR_ERRONEUSNICKNAME, new_nick);
+		return IRC_Plugin::HANDLED;
+	}
+	
 	link->unlock_message_mutex();
 	
 	vector<IRC_Server::User*>* users = link->get_users();
