@@ -23,8 +23,8 @@ endif
 ARFLAGS=-cr
 
 IRCD_LIBRARY=IRCd.a
-IRCD_LIBRARY_OBJECTS=Server.o IRC_Server.o Plugin.o IRC_Plugin.o Config.o
-PLUGINS=plugins/names-plugin.plugin plugins/join-plugin.plugin plugins/quit-plugin.plugin plugins/list-plugin.plugin plugins/part-plugin.plugin plugins/privmsg-plugin.plugin plugins/user-plugin.plugin plugins/pong-plugin.plugin plugins/nick-plugin.plugin
+IRCD_LIBRARY_OBJECTS=Server.o IRC_Server.o Plugin.o IRC_Plugin.o IRC_Service.o Config.o
+PLUGINS=plugins/names-plugin.plugin plugins/join-plugin.plugin plugins/quit-plugin.plugin plugins/list-plugin.plugin plugins/part-plugin.plugin plugins/privmsg-plugin.plugin plugins/user-plugin.plugin plugins/pong-plugin.plugin plugins/nick-plugin.plugin plugins/example-service.service
 
 OBJECTS=main.o
 
@@ -46,6 +46,11 @@ $(IRCD_LIBRARY): Makefile $(IRCD_LIBRARY_OBJECTS)
 	@$(CXX) $(CXXFLAGS) -c -o $(<:.cpp=.o) $< -I./ -Wno-return-type-c-linkage
 	@$(LD) $(LDFLAGS) -shared -o $@ $(<:.cpp=.o) $(IRCD_LIBRARY)
 
+%.service: %.cpp Makefile $(IRCD_LIBRARY)
+	@mkdir -p plugins
+	@$(CXX) $(CXXFLAGS) -c -o $(<:.cpp=.o) $< -I./ -Wno-return-type-c-linkage
+	@$(LD) $(LDFLAGS) -shared -o $@ $(<:.cpp=.o) $(IRCD_LIBRARY)
+
 clean:
 	@rm -f $(IRCD_LIBRARY)
 	@rm -f $(IRCD_LIBRARY_OBJECTS)
@@ -53,3 +58,4 @@ clean:
 	@rm -f $(PROG)
 	@rm -f $(PLUGINS)
 	@rm -f $(PLUGINS:.plugin=.o)
+	@rm -f $(PLUGINS:.service=.o)

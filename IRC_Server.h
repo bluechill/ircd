@@ -40,6 +40,8 @@ public:
 		
 		double ping_timer;
 		std::string ping_contents;
+		
+		bool isService;
 	};
 	
 	IRC_Server();
@@ -121,6 +123,9 @@ public:
 	
 	std::vector<User*>* get_users() { return &users; }
 	std::vector<Channel*>* get_channels() { return &channels; }
+	
+	Channel* get_channel_from_string(std::string channel_name);
+	User* get_user_from_string(std::string user_name);
 	
 	struct timespec get_current_time();
 	

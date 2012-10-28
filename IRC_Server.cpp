@@ -1,6 +1,7 @@
 #include "IRC_Server.h"
 
 #include "IRC_Plugin.h"
+#include "IRC_Service.h"
 
 #include <iostream>
 #include <vector>
@@ -99,7 +100,29 @@ conf("plugins.conf")
 		
 		last_line = current_line+1;
 		
-		IRC_Plugin* plugin = new IRC_Plugin(contents, this);
+		IRC_Plugin* plugin = new IRC_Plugin(contents, this, false);
+		
+		if (!plugin->is_valid())
+		{
+			delete plugin;
+			continue;
+		}
+		
+		plugins.push_back(plugin);
+	}
+	
+	last_line = 0;
+	for (int i = 0;;i++)
+	{
+		int current_line = 0;
+		string contents = conf.getElement("Service", last_line, &current_line);
+		
+		if (contents == "")
+			break;
+		
+		last_line = current_line+1;
+		
+		IRC_Service* plugin = new IRC_Service(contents, this);
 		
 		if (!plugin->is_valid())
 		{
@@ -134,10 +157,58 @@ conf("plugins.conf")
 		{
 			string path = *it;
 			
-			if (!has_extension(path, ".plugin"))
+			bool isService = false;
+			
+			if (!has_extension(path, ".plugin") && !has_extension(path, ".service"))
+				continue;
+			else if (has_extension(path, ".service"))
+				isService = true;
+			
+			IRC_Plugin* plugin;
+			
+			if (!isService)
+				plugin = new IRC_Plugin(path, this, false);
+			else
+				plugin = new IRC_Service(path, this);
+			
+			if (!plugin->is_valid())
+			{
+				delete plugin;
+				continue;
+			}
+			
+			plugins.push_back(plugin);
+		}
+	}
+	
+	last_line = 0;
+	for (int i = 0;;i++)
+	{
+		int current_line = 0;
+		string plugins_directory = conf.getElement("ServiceDirectory", last_line, &current_line);
+		
+		if (plugins_directory == "")
+			break;
+		
+		last_line = current_line+1;
+		
+		vector<string> files;
+		int status = getdir(plugins_directory, files);
+		
+		if (status != 0)
+		{
+			cerr << "Error getting the files in the directory specified for services." << endl;
+			continue;
+		}
+		
+		for (vector<string>::iterator it = files.begin();it != files.end();it++)
+		{
+			string path = *it;
+						
+			if (!has_extension(path, ".service"))
 				continue;
 			
-			IRC_Plugin* plugin = new IRC_Plugin(path, this);
+			IRC_Service* plugin = new IRC_Service(path, this);
 			
 			if (!plugin->is_valid())
 			{
@@ -773,4 +844,28 @@ void IRC_Server::send_error_message(User* user, Error_Type error, std::string ar
 	output += irc_ending;
 	
 	send_message(output, user);
+}
+
+IRC_Server::User* IRC_Server::get_user_from_string(std::string username)
+{
+	for (std::vector<User*>::iterator it = users.begin();it != users.end();it++)
+	{
+		User* iUser = *it;
+		if (iUser->nick == username)
+			return iUser;
+	}
+	
+	return NULL;
+}
+
+IRC_Server::Channel* IRC_Server::get_channel_from_string(std::string channel_name)
+{
+	for (std::vector<Channel*>::iterator it = channels.begin();it != channels.end();it++)
+	{
+		Channel* iChannel = *it;
+		if (iChannel->name == channel_name)
+			return iChannel;
+	}
+	
+	return NULL;
 }

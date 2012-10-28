@@ -1,6 +1,6 @@
 #include "IRC_Plugin.h"
 
-IRC_Plugin::IRC_Plugin(std::string path, IRC_Server* link)
+IRC_Plugin::IRC_Plugin(std::string path, IRC_Server* link, bool isService)
 : Plugin(path)
 {
 	if (!is_valid())
@@ -9,6 +9,35 @@ IRC_Plugin::IRC_Plugin(std::string path, IRC_Server* link)
 	this->link = link;
 	
 	void* handle = get_plugin_handle();
+	
+	void* init_handle = dlsym(handle, "init");
+	if (init_handle != NULL)
+	{
+		init = (init_function)init_handle;
+		
+		if (!isService)
+			init(link);
+	}
+	else
+		init = NULL;
+	
+	void* dealloc_handle = dlsym(handle, "dealloc");
+	if (dealloc_handle != NULL)
+		dealloc = (dealloc_function)dealloc_handle;
+	else
+		dealloc = NULL;
+	
+	void* nop_handle = dlsym(handle, "name_of_plugin");
+	if (nop_handle == NULL)
+	{
+		valid = false;
+		return;
+	}
+	
+	nop = (name_of_plugin_function)nop_handle;
+	
+	if (isService)
+		return;
 	
 	void* spf_handle = dlsym(handle, "get_supported_calls");
 	if (spf_handle == NULL)
@@ -27,31 +56,6 @@ IRC_Plugin::IRC_Plugin(std::string path, IRC_Server* link)
 	}
 	
 	pcf = (plugin_call_function)pcf_handle;
-	
-	void* nop_handle = dlsym(handle, "name_of_plugin");
-	if (nop_handle == NULL)
-	{
-		valid = false;
-		return;
-	}
-	
-	nop = (name_of_plugin_function)nop_handle;
-	
-	void* init_handle = dlsym(handle, "init");
-	if (init_handle != NULL)
-	{
-		init = (init_function)init_handle;
-		
-		init(link);
-	}
-	else
-		init = NULL;
-	
-	void* dealloc_handle = dlsym(handle, "dealloc");
-	if (dealloc_handle != NULL)
-		dealloc = (dealloc_function)dealloc_handle;
-	else
-		dealloc = NULL;
 }
 
 IRC_Plugin::~IRC_Plugin()
@@ -76,10 +80,13 @@ IRC_Plugin::Result_Of_Call IRC_Plugin::plugin_call(Call_Type type, IRC_Server::U
 	return pcf(type, user, parts, link);
 }
 
-std::string IRC_Plugin::get_name_of_plugin()
+std::string IRC_Plugin::get_name_of_plugin(bool absolute)
 {
 	if (!valid)
 		return "FAILURE";
 	
-	return nop();
+	if (absolute)
+		return nop();
+	
+	return "Plugin (" + nop() + ")";
 }
