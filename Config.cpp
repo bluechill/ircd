@@ -14,6 +14,8 @@ Config::Config(std::string pathToConfigFile)
 	
 	path = pathToConfigFile;
 	
+	isOpen = false;
+	
     //Open the files
     inputConfigFile.open(path.c_str(), ios::in);
     //We don't open the input file because we'll be instead overwriting the entire file so we can just truncate it
@@ -21,6 +23,8 @@ Config::Config(std::string pathToConfigFile)
     //Read the file into our vector
     if (inputConfigFile.is_open())
     {
+		isOpen = true;
+		
         //Line to hold the line in the file
         string line;
         
@@ -39,7 +43,7 @@ Config::Config(std::string pathToConfigFile)
     else
     {
         //Invalid  file so tell the user
-        cout << "Unable to open file " << pathToConfigFile << endl;
+        cerr << "Unable to open file " << pathToConfigFile << endl;
     }
 }
 
@@ -48,12 +52,16 @@ Config::~Config()
 {
     //Close the files
     closeFiles();
+	
+	isOpen = false;
 }
 
-void Config::open(std::string pathToConfigFile)
+bool Config::open(std::string pathToConfigFile)
 {
     //Use the standard namespace
     using namespace std;
+	
+	isOpen = false;
 	
 	path = pathToConfigFile;
     
@@ -69,6 +77,8 @@ void Config::open(std::string pathToConfigFile)
     //Read the file into our vector
     if (inputConfigFile.is_open())
     {
+		isOpen = true;
+		
         //Line to hold the line in the file
         string line;
         
@@ -84,11 +94,24 @@ void Config::open(std::string pathToConfigFile)
         //Close it because we don't need it anymore.
         closeFiles();
     }
+	
+	return isOpen;
+}
+
+bool Config::open()
+{
+	return isOpen;
 }
 
 //Get an element from the config file (the part after the equals) returns "" if element doesn't exist
 std::string Config::getElement(std::string element, int start_line, int* element_line)
 {
+	if (!isOpen)
+	{
+		std::cerr << "Tried to perform operation on non-open config file!" << std::endl;
+		return "";
+	}
+	
     //Use the standard namespace
     using namespace std;
     
@@ -107,15 +130,19 @@ std::string Config::getElement(std::string element, int start_line, int* element
             //Check to see if it is properly formatted
             if (positionOfEquals != string::npos)
             {
-                //It is properly formatted
-                //Get the contents after the equals
-                string contents = line.substr(positionOfEquals + 1, line.size() - positionOfEquals);
-                
-				if (element_line != NULL)
-					*element_line = i;
-				
-                //Return it
-                return contents;
+				string fileElement = line.substr(0,positionOfEquals);
+				if (fileElement == element)
+				{
+					//It is properly formatted
+					//Get the contents after the equals
+					string contents = line.substr(positionOfEquals + 1, line.size() - positionOfEquals);
+					
+					if (element_line != NULL)
+						*element_line = i;
+					
+					//Return it
+					return contents;
+				}
             }
         }
     }
@@ -126,6 +153,12 @@ std::string Config::getElement(std::string element, int start_line, int* element
 //Set an element in the configuration file (will overwrite any existing element with the same name
 void Config::setElement(std::string element, std::string contents)
 {
+	if (!isOpen)
+	{
+		std::cerr << "Tried to perform operation on non-open config file!" << std::endl;
+		return;
+	}
+	
     //Use the standard namespace
     using namespace std;
     

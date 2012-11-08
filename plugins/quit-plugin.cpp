@@ -78,7 +78,7 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 	temp_user->username = user->username;
 	temp_user->hostname = user->hostname;
 	
-	link->disconnect_client(user->socket);
+	link->disconnect_client(user->client);
 	
 	string output = ":" + temp_user->nick + "!" + temp_user->username + "@" + temp_user->hostname + " QUIT :" + quit + IRC_Server::irc_ending;
 	

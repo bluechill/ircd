@@ -12,12 +12,14 @@ CXX=$(CC)
 LD=$(CC)
 AR=ar
 
-CFLAGS=-g -fPIC
+CFLAGS=-g -fPIC -ISSL/include
 CXXFLAGS=$(CFLAGS)
-LDFLAGS=-lpthread -ldl 
+LDFLAGS=-lpthread -ldl -lssl -lcrypto
 
 ifeq ($(UNAME), Linux)
-LDFLAGS += -lrt
+LDFLAGS += -lrt -LSSL/Linux
+else
+LDFLAGS += -LSSL/OSX
 endif
 
 ARFLAGS=-cr

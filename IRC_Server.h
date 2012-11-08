@@ -11,7 +11,7 @@ class IRC_Plugin;
 #include <set>
 #include <map>
 
-class IRC_Server : public Server
+class IRC_Server : public Server_Delegate
 {
 public:
 	struct User;
@@ -32,7 +32,7 @@ public:
 		std::string realname;
 		std::string hostname;
 		
-		int socket;
+		Server_Client_ID client;
 		
 		std::vector<char> modes;
 		
@@ -44,19 +44,21 @@ public:
 		bool isService;
 	};
 	
-	IRC_Server();
+	IRC_Server(std::vector<std::string> &arguments);
 	~IRC_Server();
 	
-	void on_client_connect(int &client_sock);
-	void on_client_disconnect(int &client_socket);
+	void on_client_connect(Server_Client_ID &client, Server* server);
+	void on_client_disconnect(Server_Client_ID &client, Server* server);
 	
-	void recieve_message(std::string &message, int &client_sock);
+	void recieve_message(std::string &message, Server_Client_ID &client, Server* server);
 	
 	void send_message(std::string &message, User* user);
 	void broadcast_message(std::string &message, std::vector<User*> users, bool lock_message_mutex = true);
 	
 	void broadcast_message(std::string &message, Channel* users, bool lock_message_mutex = true);
 	void broadcast_message(std::string &message, std::vector<Channel*> channels, bool lock_message_mutex = true);
+	
+	void disconnect_client(Server_Client_ID &client);
 	
 	static const std::string irc_ending;
 		
@@ -122,6 +124,7 @@ public:
 	void send_error_message(User* user, Error_Type error, std::string arg1 = "", std::string arg2 = "");
 	
 	std::vector<User*>* get_users() { return &users; }
+	std::vector<User*>* get_services() { return &services; }
 	std::vector<Channel*>* get_channels() { return &channels; }
 	
 	Channel* get_channel_from_string(std::string channel_name);
@@ -133,6 +136,11 @@ public:
 	void unlock_message_mutex() { pthread_mutex_unlock(&message_mutex); }
 	
 private:
+	Server* server;
+	Server* ssl_server;
+	bool ssl_enabled;
+	bool dual_ssl;
+	
 	std::string hostname;
 	
 	enum Message_Type
@@ -150,18 +158,21 @@ private:
 	
 	static Message_Type string_to_message_type(std::string &message);
 	
-	User* sock_to_user(int &sock);
+	User* client_to_user(Server_Client_ID &client);
 	Channel* channel_name_to_channel(std::string &channel);
 	
 	std::vector<User*> users;
+	std::vector<User*> services;
 	std::vector<Channel*> channels;
 	
-	void parse_message(std::string &message, int &client_sock);
+	void parse_message(std::string &message, Server_Client_ID &client);
 	
-	Config conf;
+	Config* conf;
 	std::vector<IRC_Plugin*> plugins;
 	
 	pthread_mutex_t message_mutex;
+	
+	bool verbose;
 };
 
 #endif

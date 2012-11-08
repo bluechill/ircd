@@ -67,7 +67,7 @@ void* ping_thread_function(void* data)
 				temp_user->hostname = user->hostname;
 				
 				link->unlock_message_mutex();
-				link->disconnect_client(user->socket);
+				link->disconnect_client(user->client);
 				link->lock_message_mutex();
 				it--;
 				

@@ -26,6 +26,8 @@ private:
 	
     //Close a file
     void closeFiles();
+	
+	bool isOpen;
 public:
 	//Initialize the config class with the path to a config file
 	Config(std::string pathToConfigFile);
@@ -34,7 +36,9 @@ public:
 	~Config();
     
     //Open a new configuration file
-    void open(std::string pathToConfigFile);
+    bool open(std::string pathToConfigFile);
+	
+	bool open();
 	
 	//Get an element from the config file (the part after the equals) returns "" if element doesn't exist
 	std::string getElement(std::string element, int start_line = 0, int* line = NULL);

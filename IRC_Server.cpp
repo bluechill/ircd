@@ -22,6 +22,8 @@
 
 #include <errno.h>
 
+#include <assert.h>
+
 #ifdef __MACH__
 
 #include <mach/mach_time.h>
@@ -58,9 +60,7 @@ struct timespec IRC_Server::get_current_time()
 
 const std::string IRC_Server::irc_ending = "\r\n";
 
-IRC_Server::IRC_Server()
-: Server(6667, Server::Dual_IPv4_IPv6_Server, true),
-conf("plugins.conf")
+IRC_Server::IRC_Server(std::vector<std::string> &arguments)
 {
 	using namespace std;
 	
@@ -89,11 +89,276 @@ conf("plugins.conf")
 	
 	this->hostname = info->ai_canonname;
 	
+	conf = NULL;
+	
+	for (int i = 0;i < arguments.size();i++)
+	{
+		if (arguments[i] == "-config")
+		{
+			if (arguments.size() < (i+1))
+			{
+				cerr << "Must supply file name with the -config argument." << endl;
+				continue;
+			}
+			
+			if (conf)
+			{
+				delete conf;
+				conf = NULL;
+			}
+			
+			i++;
+			
+			conf = new Config(arguments[i]);
+			if (!conf->open())
+			{
+				cerr << "Invalid config file '" << arguments[i+1] << endl;
+				delete conf;	
+				conf = NULL;
+				continue;
+			}
+		}
+		else if (arguments[i] == "-help" || arguments[i] == "-h")
+		{
+			cout << "IRCd Help: " << endl;
+			cout << "\t-config\tSpecifies the config file to use.  Default is 'ircd.conf'" << endl;
+			cout << "End of IRCd Help." << endl;
+			exit(0);
+		}
+	}
+	
+	if (conf == NULL)
+	{
+		conf = new Config("ircd.conf");
+		if (!conf->open())
+		{
+			cerr << "Unable to open any config.  Please make sure to specify the config using -config or rename/create the config file to be 'ircd.conf'" << endl;
+			exit(1);
+		}
+	}
+	
+	string s_SSLEnabled = conf->getElement("SSL", 0, 0);
+	string s_DualSSL = conf->getElement("DualSSL", 0, 0);
+	string s_SSLOnly = conf->getElement("SSLOnly", 0, 0);
+	
+	string s_SSLPort = conf->getElement("SSLPort", 0, 0);
+	string s_Cert = conf->getElement("SSLCertificate", 0, 0);
+	string s_Key = conf->getElement("SSLKey", 0, 0);
+	
+	string s_Port = conf->getElement("Port", 0, 0);
+	
+	string s_IPv4Only = conf->getElement("IPv4Only", 0, 0);
+	string s_IPv6Only = conf->getElement("IPv6Only", 0, 0);
+	string s_DualIPv4IPv6 = conf->getElement("DualIPv4IPv6", 0, 0);
+	
+	ssl_enabled = false;
+	dual_ssl = false;
+	
+	if (s_SSLEnabled.size() != 0)
+	{
+		if (strncasecmp(s_SSLEnabled.c_str(), "YES", 3) == 0)
+			ssl_enabled = true;
+		else if (strncasecmp(s_SSLEnabled.c_str(), "NO", 2) == 0)
+			ssl_enabled = false;
+		else
+		{
+			ssl_enabled = false;
+			
+			cout << "WARNING: Ignoring invalid SSL Enabled value of '" << s_SSLEnabled << "'" << endl;
+		}
+	}
+	
+	if (s_DualSSL.size() != 0)
+	{
+		if (strncasecmp(s_DualSSL.c_str(), "YES", 3) == 0)
+			dual_ssl = true;
+		else if (strncasecmp(s_DualSSL.c_str(), "NO", 2) == 0)
+			dual_ssl = false;
+		else
+		{
+			dual_ssl = false;
+			
+			cerr << "WARNING: Ignoring invalid Dual SSL value of '" << s_DualSSL << "'" << endl;
+		}
+	}
+	
+	bool ssl_only = false;
+	
+	if (s_SSLOnly.size() != 0)
+	{
+		if (strncasecmp(s_SSLOnly.c_str(), "YES", 3) == 0)
+			ssl_only = true;
+		else if (strncasecmp(s_SSLOnly.c_str(), "NO", 2) == 0)
+			ssl_only = false;
+		else
+		{
+			ssl_only = false;
+			
+			cerr << "WARNING: Ignoring invalid SSL Only value of '" << s_DualSSL << "'" << endl;
+		}
+	}
+	
+	int ssl_port = 0;
+	if (s_SSLPort.size() != 0)
+	{
+		stringstream ss;
+		ss << s_SSLPort;
+		ss >> ssl_port;
+		
+		for (int i = 0;i < s_SSLPort.size();i++)
+		{
+			if (!isdigit(s_SSLPort[i]))
+			{
+				ssl_port = 0;
+				cerr << "Ignoring invalid SSL Port value, '" << s_SSLPort << "' Must contain only digits!" << endl;
+				break;
+			}
+		}
+	}
+	
+	int port = 0;
+	if (s_Port.size() != 0)
+	{
+		stringstream ss;
+		ss << s_Port;
+		ss >> port;
+		
+		for (int i = 0;i < s_Port.size();i++)
+		{
+			if (!isdigit(s_Port[i]))
+			{
+				ssl_port = 0;
+				cerr << "Ignoring invalid Port value, '" << s_Port << "' Must contain only digits!" << endl;
+				break;
+			}
+		}
+	}
+	
+	if (dual_ssl && ssl_only)
+	{
+		cerr << "Conflicting arguments! Cannot be both a dual ssl server and an ssl only server!" << endl;
+		exit(3);
+	}
+	
+	bool IPv4Only = false;
+	bool IPv6Only = false;
+	bool DualIPv4IPv6 = false;
+	
+	if (s_IPv4Only.size() != 0)
+	{
+		if (strncasecmp(s_IPv4Only.c_str(), "YES", 3) == 0)
+			IPv4Only = true;
+		else if (strncasecmp(s_IPv4Only.c_str(), "NO", 2) == 0)
+			IPv4Only = false;
+		else
+		{
+			IPv4Only = false;
+			
+			cout << "WARNING: Ignoring invalid IPv4 Only value of '" << s_IPv4Only << "'" << endl;
+		}
+	}
+	
+	if (s_IPv6Only.size() != 0)
+	{
+		if (strncasecmp(s_IPv6Only.c_str(), "YES", 3) == 0)
+			IPv6Only = true;
+		else if (strncasecmp(s_IPv6Only.c_str(), "NO", 2) == 0)
+			IPv6Only = false;
+		else
+		{
+			IPv6Only = false;
+			
+			cerr << "WARNING: Ignoring invalid IPv6 Only value of '" << s_IPv6Only << "'" << endl;
+		}
+	}
+	
+	if (s_DualIPv4IPv6.size() != 0)
+	{
+		if (strncasecmp(s_DualIPv4IPv6.c_str(), "YES", 3) == 0)
+			DualIPv4IPv6 = true;
+		else if (strncasecmp(s_DualIPv4IPv6.c_str(), "NO", 2) == 0)
+			DualIPv4IPv6 = false;
+		else
+		{
+			DualIPv4IPv6 = false;
+			
+			cerr << "WARNING: Ignoring invalid Dual IPv4 IPv6 value of '" << s_DualIPv4IPv6 << "'" << endl;
+		}
+	}
+	
+	if (IPv4Only && IPv4Only)
+	{
+		cerr << "You may only set one of IPv4Only or IPv6Only to 'YES'!" << endl;
+		exit(6);
+	}
+	
+	if ((IPv4Only || IPv6Only) && DualIPv4IPv6)
+	{
+		cerr << "You may not set IPv4Only or IPv6Only to YES when also setting DualIPv4IPv6!" << endl;
+		exit(7);
+	}
+	
+	Server::Server_Type type;
+	
+	if (IPv4Only)
+		type = Server::IPv4_Server;
+	else if (IPv6Only)
+		type = Server::IPv6_Server;
+	else if (DualIPv4IPv6)
+		type = Server::Dual_IPv4_IPv6_Server;
+	else
+	{
+		cerr << "Defaulting to Dual IPv4 and IPv6 server" << endl;
+		type = Server::Dual_IPv4_IPv6_Server;
+	}
+	
+	string s_Verbose = conf->getElement("Verbose", 0, 0);
+	
+	if (s_Verbose.size() != 0)
+	{
+		if (strncasecmp(s_Verbose.c_str(), "YES", 3) == 0)
+			verbose = true;
+		else if (strncasecmp(s_Verbose.c_str(), "NO", 2) == 0)
+			verbose = false;
+		else
+		{
+			verbose = false;
+			
+			cerr << "WARNING: Ignoring invalid Verbose value of '" << s_Verbose << "'" << endl;
+		}
+	}
+	else
+		verbose = false;
+	
+	if (ssl_enabled || dual_ssl || ssl_only)
+	{
+		if (s_Cert.size() == 0)
+		{
+			cerr << "You must specify a certificate file for an SSL server!" << endl;
+			exit(4);
+		}
+		
+		if (s_Key.size() == 0)
+		{
+			cerr << "You must specify a key file for an SSL server!" << endl;
+			exit(5);
+		}
+		
+		ssl_server = new Server(ssl_port, type, true, s_Cert, s_Key, this, verbose);
+	}
+	else
+		ssl_server = NULL;
+	
+	if (dual_ssl || !ssl_enabled || !ssl_only)
+		server = new Server(port, type, this, verbose);
+	else
+		server = NULL;
+	
 	int last_line = 0;
 	for (int i = 0;;i++)
 	{
 		int current_line = 0;
-		string contents = conf.getElement("Plugin", last_line, &current_line);
+		string contents = conf->getElement("Plugin", last_line, &current_line);
 		
 		if (contents == "")
 			break;
@@ -115,7 +380,7 @@ conf("plugins.conf")
 	for (int i = 0;;i++)
 	{
 		int current_line = 0;
-		string contents = conf.getElement("Service", last_line, &current_line);
+		string contents = conf->getElement("Service", last_line, &current_line);
 		
 		if (contents == "")
 			break;
@@ -137,7 +402,7 @@ conf("plugins.conf")
 	for (int i = 0;;i++)
 	{
 		int current_line = 0;
-		string plugins_directory = conf.getElement("PluginDirectory", last_line, &current_line);
+		string plugins_directory = conf->getElement("PluginDirectory", last_line, &current_line);
 		
 		if (plugins_directory == "")
 			break;
@@ -185,7 +450,7 @@ conf("plugins.conf")
 	for (int i = 0;;i++)
 	{
 		int current_line = 0;
-		string plugins_directory = conf.getElement("ServiceDirectory", last_line, &current_line);
+		string plugins_directory = conf->getElement("ServiceDirectory", last_line, &current_line);
 		
 		if (plugins_directory == "")
 			break;
@@ -226,6 +491,14 @@ IRC_Server::~IRC_Server()
 	pthread_exit(NULL);
 	pthread_mutex_destroy(&message_mutex);
 	
+	delete conf;
+	
+	if (server)
+		delete server;
+	
+	if (ssl_server)
+		delete ssl_server;
+	
 	for (std::vector<User*>::iterator it = users.begin();it != users.end();it++)
 		delete *it;
 	
@@ -236,7 +509,7 @@ IRC_Server::~IRC_Server()
 		delete *it;
 }
 
-void IRC_Server::on_client_connect(int &client_sock)
+void IRC_Server::on_client_connect(Server_Client_ID &client, Server* server)
 {
 	using namespace std;
 	
@@ -244,7 +517,9 @@ void IRC_Server::on_client_connect(int &client_sock)
 	new_user->nick = "";
 	new_user->username = "";
 	new_user->realname = "";
-	new_user->socket = client_sock;
+	new_user->client = client;
+	
+	assert(client >= 0);
 	
 	struct timespec current_time;
 	
@@ -255,7 +530,7 @@ void IRC_Server::on_client_connect(int &client_sock)
 	struct sockaddr_storage addr;
 	socklen_t length = sizeof(addr);
 	
-	getpeername(client_sock, (struct sockaddr*)&addr, &length);
+	getpeername(server->client_id_to_socket(client), (struct sockaddr*)&addr, &length);
 	
 	struct hostent *hp;
 	
@@ -268,7 +543,7 @@ void IRC_Server::on_client_connect(int &client_sock)
 		else
 		{
 			cerr << "Error: " << hstrerror(h_errno) << endl;
-			close(client_sock);
+			server->disconnect_client(client);
 			return;
 		}
 	}
@@ -281,7 +556,7 @@ void IRC_Server::on_client_connect(int &client_sock)
 		else
 		{
 			cerr << "Error: " << hstrerror(h_errno) << endl;
-			close(client_sock);
+			server->disconnect_client(client);
 			return;
 		}
 	}
@@ -309,14 +584,14 @@ void IRC_Server::on_client_connect(int &client_sock)
 	}
 }
 
-void IRC_Server::on_client_disconnect(int &client_socket)
+void IRC_Server::on_client_disconnect(Server_Client_ID &client, Server* server)
 {
 	using namespace std;
 	
 	lock_message_mutex();
 	for (std::vector<User*>::iterator it = users.begin();it != users.end();it++)
 	{
-		if ((*it)->socket == client_socket)
+		if ((*it)->client == client)
 		{
 			for (vector<IRC_Plugin*>::iterator jt = plugins.begin();jt != plugins.end();jt++)
 			{
@@ -344,7 +619,7 @@ void IRC_Server::on_client_disconnect(int &client_socket)
 	unlock_message_mutex();
 }
 
-void IRC_Server::recieve_message(std::string &message, int &client_sock)
+void IRC_Server::recieve_message(std::string &message, Server_Client_ID &client, Server* server)
 {
 	using namespace std;
 	
@@ -359,7 +634,7 @@ void IRC_Server::recieve_message(std::string &message, int &client_sock)
 		return;
 	}
 	
-	parse_message(message, client_sock);
+	parse_message(message, client);
 }
 
 void IRC_Server::send_message(std::string &message, User* user)
@@ -367,7 +642,15 @@ void IRC_Server::send_message(std::string &message, User* user)
 	if (user == NULL)
 		return;
 	
-	write(user->socket, message.c_str(), message.size());
+	if (verbose)
+		std::cout << message;
+	
+	if (server->client_id_to_socket(user->client) != -1)
+		server->send_message(message, user->client);
+	else if (ssl_server->client_id_to_socket(user->client) != -1)
+		ssl_server->send_message(message, user->client);
+	else
+		std::cerr << "WARNING: Invalid client: '" << user->nick << "':" << user->hostname << " found while trying to send message: '" << message << "'" << std::endl;
 }
 
 void IRC_Server::broadcast_message(std::string &message, std::vector<User*> users, bool lock_message_mutex)
@@ -421,12 +704,12 @@ IRC_Server::Message_Type IRC_Server::string_to_message_type(std::string &message
 	return UNKNOWN;
 }
 
-IRC_Server::User* IRC_Server::sock_to_user(int &sock)
+IRC_Server::User* IRC_Server::client_to_user(Server_Client_ID &client)
 {
 	unlock_message_mutex();
 	for (std::vector<User*>::iterator it = users.begin();it != users.end();it++)
 	{
-		if ((*it)->socket == sock)
+		if ((*it)->client == client)
 		{
 			unlock_message_mutex();
 			return *it;
@@ -448,9 +731,11 @@ IRC_Server::Channel* IRC_Server::channel_name_to_channel(std::string &channel)
 	return NULL;
 }
 
-void IRC_Server::parse_message(std::string &message, int &client_sock)
+void IRC_Server::parse_message(std::string &message, Server_Client_ID &client)
 {
 	using namespace std;
+	
+	assert(client >= 0);
 	
 	message.erase(message.size()-2, 2);
 	
@@ -491,13 +776,15 @@ void IRC_Server::parse_message(std::string &message, int &client_sock)
 		}
 	}
 	
-	User* user = sock_to_user(client_sock);
+	User* user = client_to_user(client);
 	
 	if (user == NULL)
 	{
 		cerr << "Invalid user socket for server! : '" << message << "'" << endl;
 		return;
 	}
+	
+	assert(user->client >= 0);
 	
 	Message_Type type = string_to_message_type(parts[0]);
 	
@@ -868,4 +1155,12 @@ IRC_Server::Channel* IRC_Server::get_channel_from_string(std::string channel_nam
 	}
 	
 	return NULL;
+}
+
+void IRC_Server::disconnect_client(Server_Client_ID &client)
+{
+	if (server->client_id_to_socket(client) != -1)
+		server->disconnect_client(client);
+	else if (ssl_server->client_id_to_socket(client) != -1)
+		ssl_server->disconnect_client(client);
 }

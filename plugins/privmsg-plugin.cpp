@@ -77,7 +77,12 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 					vector<IRC_Server::User*>::iterator channel_it = find((*it)->users.begin(), (*it)->users.end(), user);
 					
 					if (channel_it != (*it)->users.end())
-						link->broadcast_message(message, *user_it, false);
+					{
+						vector<IRC_Server::User*> users = (*user_it)->users;
+						vector<IRC_Server::User*>::iterator ut = find(users.begin(),users.end(),user);
+						users.erase(ut);
+						link->broadcast_message(message, users, false);
+					}
 				}
 				
 				break;

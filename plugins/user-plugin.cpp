@@ -51,7 +51,7 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 		
 		link->unlock_message_mutex();
 		link->send_message(output, user);
-		link->disconnect_client(user->socket);
+		link->disconnect_client(user->client);
 		return IRC_Plugin::HANDLED;
 	}
 	

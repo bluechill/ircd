@@ -25,7 +25,7 @@ IRC_Service::IRC_Service(std::string path, IRC_Server* link)
 	user_link->realname = "Service";
 	user_link->hostname = link->get_hostname();
 	
-	user_link->socket = -1;
+	user_link->client = -1;
 	
 	user_link->ping_timer = -1;
 	user_link->ping_contents = "";
@@ -34,8 +34,8 @@ IRC_Service::IRC_Service(std::string path, IRC_Server* link)
 	
 	link->lock_message_mutex();
 	
-	std::vector<IRC_Server::User*>* users = link->get_users();
-	users->push_back(user_link);
+	std::vector<IRC_Server::User*>* services = link->get_services();
+	services->push_back(user_link);	
 	
 	link->unlock_message_mutex();
 	
