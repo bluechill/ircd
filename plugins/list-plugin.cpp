@@ -56,8 +56,8 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 		
 		string modes = "[+";
 		
-		for (vector<char>::iterator jt = chan->modes.begin();jt != chan->modes.end();jt++)
-			modes += *jt;
+		for (vector<pair<char, string> >::iterator jt = chan->modes.begin();jt != chan->modes.end();jt++)
+			modes += jt->first;
 		
 		modes += "]";
 		

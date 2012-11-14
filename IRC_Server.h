@@ -18,12 +18,11 @@ public:
 	
 	struct Channel {
 		std::string name;
-		std::vector<char> modes;
+		std::vector<std::pair<char, std::string> > modes;
 		
 		std::string topic;
 		
 		std::vector<User*> users;
-		std::map<User*, std::vector<char> > users_to_modes;
 	};
 	
 	struct User {
@@ -34,7 +33,7 @@ public:
 		
 		Server_Client_ID client;
 		
-		std::vector<char> modes;
+		std::vector<std::pair<char, std::string> > modes;
 		
 		std::vector<Channel*> channels;
 		

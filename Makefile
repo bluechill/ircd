@@ -26,7 +26,7 @@ ARFLAGS=-cr
 
 IRCD_LIBRARY=IRCd.a
 IRCD_LIBRARY_OBJECTS=Server.o IRC_Server.o Plugin.o IRC_Plugin.o IRC_Service.o Config.o
-PLUGINS=plugins/names-plugin.plugin plugins/join-plugin.plugin plugins/quit-plugin.plugin plugins/list-plugin.plugin plugins/part-plugin.plugin plugins/privmsg-plugin.plugin plugins/user-plugin.plugin plugins/pong-plugin.plugin plugins/nick-plugin.plugin plugins/example-service.service
+PLUGINS=plugins/names-plugin.plugin plugins/join-plugin.plugin plugins/quit-plugin.plugin plugins/list-plugin.plugin plugins/part-plugin.plugin plugins/privmsg-plugin.plugin plugins/user-plugin.plugin plugins/pong-plugin.plugin plugins/nick-plugin.plugin plugins/mode-plugin.plugin plugins/oper-plugin.plugin plugins/example-service.service
 
 OBJECTS=main.o
 
