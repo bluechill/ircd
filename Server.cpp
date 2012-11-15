@@ -124,9 +124,6 @@ void server_thread_function(Accept_Struct* accept_struct, bool ipv6)
 	
 	if (isUsingSSL)
 	{
-		SSL_load_error_strings();
-		SSL_library_init();
-		
 		if ((err = ERR_get_error()) != 0)
 		{
 			cerr << "SSL Library Error (Library Init): " << ERR_error_string(err, NULL) << endl;
@@ -299,6 +296,12 @@ Server::Server(int port, Server::Server_Type type, bool ssl, std::string cert_pa
 	
 	this->cert_path = cert_path;
 	this->key_path = key_path;
+	
+	SSL_load_error_strings();
+	SSL_library_init();
+	OpenSSL_add_all_algorithms();
+	OpenSSL_add_all_ciphers();
+	OpenSSL_add_all_digests();
 	
 	create_server(port, type);
 }

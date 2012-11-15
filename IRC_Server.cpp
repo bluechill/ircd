@@ -590,11 +590,6 @@ void IRC_Server::on_client_disconnect(Server_Client_ID &client, Server* server)
 	
 	lock_message_mutex();
 	
-	cout << "Disconnecting client: " << client << endl;
-	cout << "Current clients (includin the soon-to-be-disconnected):" << endl;
-	for (int i = 0;i < users.size();i++)
-		cout << "Client: " << users[i]->client << endl;
-	
 	for (std::vector<User*>::iterator it = users.begin();it != users.end();it++)
 	{
 		if ((*it)->client == client)
