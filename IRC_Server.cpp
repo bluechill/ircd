@@ -68,7 +68,7 @@ IRC_Server::IRC_Server(std::vector<std::string> &arguments)
 	
 	pthread_mutex_init(&message_mutex, NULL);
 	
-	struct addrinfo hints, *info, *p;
+	struct addrinfo hints, *info;
 	int gai_result;
 	
 	char hostname[1024];

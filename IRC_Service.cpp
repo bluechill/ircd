@@ -131,7 +131,7 @@ IRC_Service::Result_Of_Call IRC_Service::plugin_call(Call_Type type, IRC_Server:
 	return HANDLED;
 }
 
-std::string IRC_Service::get_name_of_plugin()
+std::string IRC_Service::get_name_of_plugin(bool absolute)
 {
 	if (!valid)
 		return "FAILURE";

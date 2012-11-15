@@ -12,7 +12,7 @@ CXX=$(CC)
 LD=$(CC)
 AR=ar
 
-CFLAGS=-g -fPIC -ISSL/include -Weverything
+CFLAGS=-g -fPIC -ISSL/include -Wall
 CXXFLAGS=$(CFLAGS)
 LDFLAGS=-lpthread -ldl -lssl -lcrypto
 

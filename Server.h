@@ -58,7 +58,7 @@ public:
 	
 	Server(int port, Server_Type type, Server_Delegate *delegate = NULL, bool verbose = true);
 	Server(int port, Server_Type type, bool ssl, std::string cert_path, std::string key_path, Server_Delegate *delegate = NULL, bool verbose = true);
-	~Server();
+	virtual ~Server();
 
 	virtual void on_client_connect(Server_Client_ID &client) {}
 	virtual void on_client_disconnect(Server_Client_ID &client) {}

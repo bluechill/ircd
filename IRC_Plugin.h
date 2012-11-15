@@ -31,7 +31,7 @@ public:
 	};
 	
 	IRC_Plugin(std::string path, IRC_Server* link, bool isService);
-	~IRC_Plugin();
+	virtual ~IRC_Plugin();
 	
 	virtual std::vector<Call_Type> get_supported_calls();
 	

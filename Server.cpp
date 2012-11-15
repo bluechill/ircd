@@ -214,7 +214,7 @@ void server_thread_function(Accept_Struct* accept_struct, bool ipv6)
 		else
 			server->accept_client(id, client_sock);
 		
-		pthread_t accept_thread;
+		//pthread_t accept_thread;
 		
 		Accept_Struct* to_pass = new Accept_Struct;
 		to_pass->server = accept_struct->server;

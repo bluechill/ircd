@@ -11,13 +11,13 @@ class IRC_Service : public IRC_Plugin
 public:
 	
 	IRC_Service(std::string path, IRC_Server* link);
-	~IRC_Service();
+	virtual ~IRC_Service();
 	
 	std::vector<Call_Type> get_supported_calls();
 	
 	Result_Of_Call plugin_call(Call_Type type, IRC_Server::User* user, std::vector<std::string> &parts);
 	
-	std::string get_name_of_plugin();
+	std::string get_name_of_plugin(bool absolute = false);
 	
 	enum Service_Supported_Calls
 	{
