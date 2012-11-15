@@ -589,6 +589,12 @@ void IRC_Server::on_client_disconnect(Server_Client_ID &client, Server* server)
 	using namespace std;
 	
 	lock_message_mutex();
+	
+	cout << "Disconnecting client: " << client << endl;
+	cout << "Current clients (includin the soon-to-be-disconnected):" << endl;
+	for (int i = 0;i < users.size();i++)
+		cout << "Client: " << users[i]->client << endl;
+	
 	for (std::vector<User*>::iterator it = users.begin();it != users.end();it++)
 	{
 		if ((*it)->client == client)
@@ -604,7 +610,9 @@ void IRC_Server::on_client_disconnect(Server_Client_ID &client, Server* server)
 				if (types_it != types.end())
 				{
 					vector<string> parts;
+					unlock_message_mutex();
 					IRC_Plugin::Result_Of_Call result = plugin->plugin_call(IRC_Plugin::ON_CLIENT_DISCONNECT, *it, parts);
+					lock_message_mutex();
 					
 					if (result == IRC_Plugin::FAILURE)
 						cerr << "Plugin failed (ON_CLIENT_DISCONNECT), see log for more details." << endl;
@@ -1157,10 +1165,18 @@ IRC_Server::Channel* IRC_Server::get_channel_from_string(std::string channel_nam
 	return NULL;
 }
 
-void IRC_Server::disconnect_client(Server_Client_ID &client)
-{
+void IRC_Server::disconnect_client(Server_Client_ID &client, std::string reason)
+{	
 	if (server->client_id_to_socket(client) != -1)
+	{
+		last_disconnect_reason = reason;
+		
 		server->disconnect_client(client);
+	}
 	else if (ssl_server->client_id_to_socket(client) != -1)
+	{
+		last_disconnect_reason = reason;
+		
 		ssl_server->disconnect_client(client);
+	}
 }

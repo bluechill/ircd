@@ -57,10 +57,11 @@ public:
 	void broadcast_message(std::string &message, Channel* users, bool lock_message_mutex = true);
 	void broadcast_message(std::string &message, std::vector<Channel*> channels, bool lock_message_mutex = true);
 	
-	void disconnect_client(Server_Client_ID &client);
+	void disconnect_client(Server_Client_ID &client, std::string reason = "");
+	std::string get_last_disconnect_reason() { return last_disconnect_reason; }
 	
 	static const std::string irc_ending;
-		
+	
 	std::string get_hostname() { return hostname; }
 	
 	enum Error_Type
@@ -172,6 +173,8 @@ private:
 	pthread_mutex_t message_mutex;
 	
 	bool verbose;
+	
+	std::string last_disconnect_reason;
 };
 
 #endif

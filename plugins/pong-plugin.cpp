@@ -67,7 +67,7 @@ void* ping_thread_function(void* data)
 				temp_user->hostname = user->hostname;
 				
 				link->unlock_message_mutex();
-				link->disconnect_client(user->client);
+				link->disconnect_client(user->client, "PING");
 				link->lock_message_mutex();
 				it--;
 				
@@ -124,6 +124,8 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 		return IRC_Plugin::HANDLED;
 	}
 	
+	link->lock_message_mutex();
+	
 	std::string contents = parts[1];
 	
 	if (user->ping_contents == contents)
@@ -132,11 +134,11 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 		
 		current_time = link->get_current_time();
 		
-		link->lock_message_mutex();
 		user->ping_timer  = (double(current_time.tv_sec) + double(current_time.tv_nsec)/double(1E9));
 		user->ping_contents = "";
-		link->unlock_message_mutex();
 	}
+	
+	link->unlock_message_mutex();
 	
 	return IRC_Plugin::HANDLED;
 }

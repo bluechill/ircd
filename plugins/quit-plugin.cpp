@@ -10,6 +10,7 @@ extern "C" std::vector<IRC_Plugin::Call_Type> get_supported_calls()
 {
 	std::vector<IRC_Plugin::Call_Type> types;
 	types.push_back(IRC_Plugin::ON_RECIEVE_MESSAGE);
+	types.push_back(IRC_Plugin::ON_CLIENT_DISCONNECT);
 	
 	return types;
 }
@@ -23,17 +24,24 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 {
 	using namespace std;
 	
-	if (type != IRC_Plugin::ON_RECIEVE_MESSAGE)
+	if (type != IRC_Plugin::ON_RECIEVE_MESSAGE && type != IRC_Plugin::ON_CLIENT_DISCONNECT)
 		return IRC_Plugin::NOT_HANDLED;
 	
-	if (strncasecmp(parts[0].c_str(), "QUIT", 4) != 0)
+	if (parts.size() > 0 && strncasecmp(parts[0].c_str(), "QUIT", 4) != 0)
 		return IRC_Plugin::NOT_HANDLED;
+	
+	if (type == IRC_Plugin::ON_CLIENT_DISCONNECT && link->get_last_disconnect_reason() != "")
+		return IRC_Plugin::NOT_HANDLED;
+	
+	link->lock_message_mutex();
 	
 	string quit_message = "ERROR :Closing Link: " + user->nick + "[" + user->hostname + "] (Quit: ";
 	
 	string quit = "";
 	
-	if (parts.size() == 1)
+	if (parts.size() == 0)
+		quit = " Client Exited";
+	else if (parts.size() == 1)
 		quit += " " + user->nick;
 	else
 	{
@@ -50,7 +58,6 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 	
 	vector<IRC_Server::Channel*>* channels = link->get_channels();
 	
-	link->lock_message_mutex();
 	for (vector<IRC_Server::Channel*>::iterator it = user->channels.begin();it != user->channels.end();it++)
 	{
 		vector<IRC_Server::User*>::iterator channel_it = find((*it)->users.begin(), (*it)->users.end(), user);
@@ -68,7 +75,6 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 				channels->erase(cit);
 		}
 	}
-	link->unlock_message_mutex();
 	
 	link->send_message(quit_message, user);
 	
@@ -78,11 +84,14 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 	temp_user->username = user->username;
 	temp_user->hostname = user->hostname;
 	
-	link->disconnect_client(user->client);
+	link->unlock_message_mutex();
+	
+	if (type != IRC_Plugin::ON_CLIENT_DISCONNECT)
+		link->disconnect_client(user->client, "QUIT");
 	
 	string output = ":" + temp_user->nick + "!" + temp_user->username + "@" + temp_user->hostname + " QUIT :" + quit + IRC_Server::irc_ending;
 	
-	link->broadcast_message(output, temp_user->channels);
+	link->broadcast_message(output, temp_user->channels, true);
 	
 	delete temp_user;
 	

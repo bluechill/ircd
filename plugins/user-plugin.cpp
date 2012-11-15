@@ -38,6 +38,7 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 	}
 	
 	link->lock_message_mutex();
+	
 	if (user->username.size() != 0 && user->nick.size() != 0)
 	{
 		link->unlock_message_mutex();
@@ -50,8 +51,9 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 		string output = "ERROR :Closing Link: " + user->nick + "[" + user->hostname + "] (Hostile username.  Please only use 0-9 a-z A-Z _ - and . in your username.)" + IRC_Server::irc_ending;
 		
 		link->unlock_message_mutex();
+		
 		link->send_message(output, user);
-		link->disconnect_client(user->client);
+		link->disconnect_client(user->client, "USER");
 		return IRC_Plugin::HANDLED;
 	}
 	

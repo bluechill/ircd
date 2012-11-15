@@ -37,6 +37,8 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 		return IRC_Plugin::HANDLED;
 	}
 	
+	link->lock_message_mutex();
+	
 	string result = ":";
 	result += user->nick;
 	result += "!";
@@ -52,7 +54,6 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 	
 	for (int z = 0;z < channels_string.size();)
 	{
-		link->lock_message_mutex();
 		int next = channels_string.find(",", z);
 		
 		string channel = channels_string.substr(z, next);
@@ -60,7 +61,6 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 		
 		if (channel[0] != '#')
 		{
-			link->unlock_message_mutex();
 			link->send_error_message(user, IRC_Server::ERR_NOSUCHCHANNEL, channel);
 			
 			continue;
@@ -104,9 +104,7 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 		}
 		
 		if (next == string::npos)
-			break;
-		
-		link->unlock_message_mutex();
+			break;		
 	}
 	
 	link->unlock_message_mutex();

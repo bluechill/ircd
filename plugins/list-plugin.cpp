@@ -33,6 +33,8 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 	if (parts.size() != 1)
 		return IRC_Plugin::HANDLED;
 	
+	link->lock_message_mutex();
+	
 	string begin = ":" + link->get_hostname() + " 32";
 	
 	string start_of_list = begin + "1 " + user->nick + " Channel :Users  Name" + IRC_Server::irc_ending;
@@ -44,7 +46,6 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 	link->send_message(start_of_list, user);
 	
 	vector<IRC_Server::Channel*>* channels = link->get_channels();
-	link->lock_message_mutex();
 	for (vector<IRC_Server::Channel*>::iterator it = channels->begin();it != channels->end();it++)
 	{
 		IRC_Server::Channel* chan = (*it);
@@ -65,13 +66,12 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 		
 		message += " " + chan->topic + IRC_Server::irc_ending;
 		
-		link->unlock_message_mutex();
 		link->send_message(message, user);
-		link->lock_message_mutex();
 	}
 	
-	link->unlock_message_mutex();
 	link->send_message(end_of_list, user);
+	
+	link->unlock_message_mutex();
 	
 	return IRC_Plugin::HANDLED;
 }

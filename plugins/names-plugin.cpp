@@ -34,6 +34,8 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 	
 	if (strncasecmp(parts[0].c_str(), "NAMES", 5) != 0)
 		return IRC_Plugin::NOT_HANDLED;
+	
+	link->lock_message_mutex();
 
 	string channel = "*";
 	
@@ -53,7 +55,6 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 		bool found_channel = false;
 		
 		vector<IRC_Server::Channel*>* link_channels = link->get_channels();
-		link->lock_message_mutex();
 		for (vector<IRC_Server::Channel*>::iterator it = link_channels->begin();it != link_channels->end();it++)
 		{
 			IRC_Server::Channel* chan = *it;
@@ -90,7 +91,6 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 				break;
 			}
 		}
-		link->unlock_message_mutex();
 		
 		if (found_channel)
 			link->send_message(list_of_users, user);
@@ -98,6 +98,8 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 	
 	string end_of_names = ":" + link->get_hostname() + " 366 " + user->nick + " " + channel + " :End of /NAMES list." + IRC_Server::irc_ending;
 	link->send_message(end_of_names, user);
+	
+	link->unlock_message_mutex();
 	
 	return IRC_Plugin::HANDLED;
 }

@@ -474,6 +474,8 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 	if (parts.size() < 3)
 		return IRC_Plugin::HANDLED;
 	
+	link->lock_message_mutex();
+	
 	string result = ":";
 	result += user->nick;
 	result += "!";
