@@ -48,9 +48,11 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 	
 	result += " PRIVMSG ";
 	
-	vector<IRC_Server::Channel*>* channels = link->get_channels();
-	
 	string channels_string = parts[1];
+	
+	vector<IRC_Server::Channel*>* channels = link->get_channels();
+	vector<IRC_Server::User*>* users = link->get_users();
+	
 	for (int z = 0;z < channels_string.size();)
 	{
 		int next = channels_string.find(",", z);
@@ -58,15 +60,13 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 		string channel = channels_string.substr(z, next);
 		z = next+1;
 		
-		if (channel[0] != '#')
-			continue;
-		
 		string message = result;
 		message += channel;
 		message += " :";
 		message += parts[2];
 		message += IRC_Server::irc_ending;
 		
+		bool found = false;
 		for (vector<IRC_Server::Channel*>::iterator it = channels->begin();it != channels->end();it++)
 		{
 			if ((*it)->name == channel)
@@ -79,6 +79,7 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 					
 					if (channel_it != (*it)->users.end())
 					{
+						found = true;
 						vector<IRC_Server::User*> users = (*user_it)->users;
 						vector<IRC_Server::User*>::iterator ut = find(users.begin(),users.end(),user);
 						users.erase(ut);
@@ -89,6 +90,23 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 				break;
 			}
 		}
+		
+		if (!found)
+		{
+			for (vector<IRC_Server::User*>::iterator it = users->begin();it != users->end();it++)
+			{
+				if ((*it)->nick == channel)
+				{
+					found = true;
+					link->send_message(message, *it);
+					
+					break;
+				}
+			}
+		}
+		
+		if (!found)
+			link->send_error_message(user, IRC_Server::ERR_NOSUCHNICK, channel);
 		
 		if (next == string::npos)
 			break;
