@@ -29,13 +29,8 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 	if (strncasecmp(parts[0].c_str(), "USER", 4) != 0)
 		return IRC_Plugin::NOT_HANDLED;
 	
-	if (parts.size() != 5)
-	{
-		if (parts.size() < 5)
-			link->send_error_message(user, IRC_Server::ERR_NEEDMOREPARAMS, "USER");
-		
-		return IRC_Plugin::HANDLED;
-	}
+	if (parts.size() < 5)
+		link->send_error_message(user, IRC_Server::ERR_NEEDMOREPARAMS, "USER");
 	
 	link->lock_message_mutex();
 	
@@ -58,7 +53,20 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 	}
 	
 	user->username = parts[1];
-	user->realname = parts[4];
+	if (parts[4].size() == 0 || (parts[4].size() > 0 && parts[4][0] != ':'))
+		user->realname = "";
+	else
+	{
+		string realname = "";
+		
+		for (int i = 4;i < parts.size();i++)
+			realname += " " + parts[i];
+		
+		realname.erase(realname.begin());
+		realname.erase(realname.begin());
+		
+		user->realname = realname;
+	}
 	
 	link->unlock_message_mutex();
 	
