@@ -5,6 +5,7 @@
 
 #include <vector>
 #include <string>
+#include <algorithm>
 
 extern "C" std::vector<IRC_Plugin::Call_Type> get_supported_calls()
 {
