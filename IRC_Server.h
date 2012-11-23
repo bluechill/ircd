@@ -1,6 +1,8 @@
 #ifndef IRC_SERVER_H
 #define IRC_SERVER_H 1
 
+#define VERSION "EvilIRCd 1.0 Alpha 1"
+
 #include "Server.h"
 
 #include "Config.h"
@@ -41,6 +43,7 @@ public:
 		std::string ping_contents;
 		
 		bool isService;
+		bool hasRegistered;
 	};
 	
 	IRC_Server(std::vector<std::string> &arguments);
@@ -135,6 +138,9 @@ public:
 	void lock_message_mutex() { pthread_mutex_lock(&message_mutex); }
 	void unlock_message_mutex() { pthread_mutex_unlock(&message_mutex); }
 	
+	Config* get_config() { return conf; }
+	
+	std::string get_version_string() { return VERSION; }
 private:
 	Server* server;
 	Server* ssl_server;

@@ -518,6 +518,8 @@ void IRC_Server::on_client_connect(Server_Client_ID &client, Server* server)
 	new_user->username = "";
 	new_user->realname = "";
 	new_user->client = client;
+	new_user->hasRegistered = false;
+	new_user->isService = false;
 	
 	assert(client >= 0);
 	
@@ -681,28 +683,14 @@ void IRC_Server::broadcast_message(std::string &message, std::vector<Channel*> c
 
 IRC_Server::Message_Type IRC_Server::string_to_message_type(std::string &message)
 {
-	if (message.size() == 4)
-	{
-		if (strncasecmp(message.c_str(), "NICK", message.size()) == 0)
-			return NICK;
-		else if (strncasecmp(message.c_str(), "USER", message.size()) == 0)
-			return USER;
-		else if (strncasecmp(message.c_str(), "PONG", message.size()) == 0)
-			return PONG;
-		else if (strncasecmp(message.c_str(), "JOIN", message.size()) == 0)
-			return JOIN;
-		else if (strncasecmp(message.c_str(), "PART", message.size()) == 0)
-			return PART;
-		else if (strncasecmp(message.c_str(), "LIST", message.size()) == 0)
-			return LIST;
-		else if (strncasecmp(message.c_str(), "QUIT", message.size()) == 0)
-			return QUIT;
-	}
-	else if (message.size() == 7)
-	{
-		if (strncasecmp(message.c_str(), "PRIVMSG", message.size()) == 0)
-			return PRIVMSG;
-	}
+	if (strncasecmp(message.c_str(), "NICK", message.size()) == 0)
+		return NICK;
+	else if (strncasecmp(message.c_str(), "USER", message.size()) == 0)
+		return USER;
+	else if (strncasecmp(message.c_str(), "PONG", message.size()) == 0)
+		return PONG;
+	else if (strncasecmp(message.c_str(), "QUIT", message.size()) == 0)
+		return QUIT;
 	
 	return UNKNOWN;
 }
@@ -843,6 +831,22 @@ void IRC_Server::parse_message(std::string &message, Server_Client_ID &client)
 		
 		if (result == IRC_Plugin::FAILURE)
 			cerr << "Plugin failed (AFTER_MESSAGE_PARSE), see log for more details." << endl;
+	}
+	
+	if ((type == NICK || type == USER) && user->username.size() != 0 && user->nick.size() != 0 && !user->hasRegistered)
+	{
+		user->hasRegistered = true;
+		
+		vector<std::string> parts;
+		for (vector<IRC_Plugin*>::iterator it = plugins.begin();it != plugins.end();it++)
+		{
+			IRC_Plugin* plugin = *it;
+			
+			IRC_Plugin::Result_Of_Call result = plugin->plugin_call(IRC_Plugin::ON_CLIENT_REGISTERED, user, parts);
+			
+			if (result == IRC_Plugin::FAILURE)
+				cerr << "Plugin failed (ON_CLIENT_REGISTERED), see log for more details." << endl;
+		}
 	}
 }
 

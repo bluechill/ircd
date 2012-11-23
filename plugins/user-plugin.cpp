@@ -30,7 +30,10 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 		return IRC_Plugin::NOT_HANDLED;
 	
 	if (parts.size() < 5)
+	{
 		link->send_error_message(user, IRC_Server::ERR_NEEDMOREPARAMS, "USER");
+		return IRC_Plugin::HANDLED;
+	}
 	
 	link->lock_message_mutex();
 	
