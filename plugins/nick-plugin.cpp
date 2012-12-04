@@ -117,9 +117,9 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 		
 		current_time = link->get_current_time();
 		
-		user->ping_timer  = (double(current_time.tv_sec) + double(current_time.tv_nsec)/double(1E9)) - 35;
+		user->ping_timer  = (double(current_time.tv_sec) + double(current_time.tv_nsec)/double(1E9)) + 60;
 		user->ping_contents = random;
-		
+				
 		link->send_message(ping_message, user);
 	}
 	

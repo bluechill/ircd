@@ -527,7 +527,7 @@ void IRC_Server::on_client_connect(Server_Client_ID &client, Server* server)
 	
 	current_time = get_current_time();
 	
-	new_user->ping_timer = (double(current_time.tv_sec) + double(current_time.tv_nsec)/double(1E9)) - 35;
+	new_user->ping_timer = (double(current_time.tv_sec) + double(current_time.tv_nsec)/double(1E9)) + 60;
 	
 	struct sockaddr_storage addr;
 	socklen_t length = sizeof(addr);
@@ -728,7 +728,11 @@ void IRC_Server::parse_message(std::string &message, Server_Client_ID &client)
 	
 	assert(client >= 0);
 	
-	message.erase(message.size()-2, 2);
+	int to_erase = 2;
+	if (message.find('\r') == string::npos)
+		to_erase = 1;
+	
+	message.erase(message.size()-to_erase, to_erase);
 	
 	vector<string> parts;
 	

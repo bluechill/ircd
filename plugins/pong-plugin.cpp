@@ -43,19 +43,20 @@ void* ping_thread_function(void* data)
 			
 			double user_time = user->ping_timer;
 			
-			if ((double_current_time - user_time) > double(30) &&
-				(double_current_time - user_time) < double(35) &&
-				!(user->nick.size() == 0 || user->username.size() == 0))
+			if ((user_time - double_current_time) > double(30) &&
+				(user_time - double_current_time) < double(35) &&
+				!(user->nick.size() == 0 || user->username.size() == 0) &&
+				user->ping_contents == "")
 			{
 				string ping_message = "PING :" + link->get_hostname() + IRC_Server::irc_ending;
 				
-				user->ping_timer -= 5;
+				user->ping_timer = double_current_time + 30;
 				user->ping_contents = link->get_hostname();
-				
+
 				link->send_message(ping_message, user);
 			}
-			else if ((double_current_time - user_time) > double(65))
-			{
+			else if ((user_time - double_current_time) < 0)
+			{				
 				string quit_message = "ERROR :Closing Link: " + user->nick + "[" + user->hostname + "] (Ping Timeout)" + IRC_Server::irc_ending;
 				
 				link->send_message(quit_message, user);
@@ -134,7 +135,7 @@ extern "C" IRC_Plugin::Result_Of_Call plugin_call(IRC_Plugin::Call_Type type, IR
 		
 		current_time = link->get_current_time();
 		
-		user->ping_timer  = (double(current_time.tv_sec) + double(current_time.tv_nsec)/double(1E9));
+		user->ping_timer  = (double(current_time.tv_sec) + double(current_time.tv_nsec)/double(1E9)) + 60;
 		user->ping_contents = "";
 	}
 	
