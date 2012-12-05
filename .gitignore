@@ -2,4 +2,5 @@
 *.lib
 *.a
 *.plugin
+*.service
 ircd

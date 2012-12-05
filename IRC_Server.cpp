@@ -1097,7 +1097,7 @@ void IRC_Server::send_error_message(User* user, Error_Type error, std::string ar
 			output += ":Permission Denied- You're not an IRC operator";
 			break;
 		}
-		case ERR_CHANOPPRIVSNEEDED:
+		case ERR_CHANOPRIVSNEEDED:
 		{
 			output += arg1 + " :You're not channel operator";
 			break;
