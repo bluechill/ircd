@@ -1,6 +1,6 @@
 -------------------------------------------------------------------------------
 
-There should be a MOTD here......
+There should be a MOTD here.......
 
 Welcome!
 
