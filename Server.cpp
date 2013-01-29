@@ -312,7 +312,58 @@ void Server::create_server(int port, Server::Server_Type server_type)
 	
 	int status = 0;
 	
-	if (server_type == IPv4_Server || server_type == Dual_IPv4_IPv6_Server)
+	bool created_dual_stack = false;
+	if (server_type == IPv6_Server || server_type == Dual_IPv4_IPv6_Server)
+	{
+		struct sockaddr_in6 server_name_ipv6;
+		
+		server_sock_ipv6 = socket(AF_INET6, SOCK_STREAM, 0);
+		if (server_sock_ipv6 == -1)
+		{
+			cerr << "Failed to create IPv6 socket: " << strerror(errno) << endl;
+			throw IPv6_Initialization_Failure;
+		}
+		
+		if (getsockopt(server_sock_ipv6, IPPROTO_IPV6, IPV6_V6ONLY, NULL, NULL) != 0)
+		{
+			int no = 0;
+			setsockopt(server_sock_ipv6, IPPROTO_IPV6, IPV6_V6ONLY, (void *)no, sizeof(no));
+			created_dual_stack = true;
+		}
+		
+		//server_name_ipv6.sin6_len = sizeof(struct sockaddr_in6);
+		server_name_ipv6.sin6_family = AF_INET6;
+		server_name_ipv6.sin6_addr = in6addr_any;
+		server_name_ipv6.sin6_port = htons(port);
+		
+		status = bind(server_sock_ipv6, (struct sockaddr*)&server_name_ipv6, sizeof(server_name_ipv6));
+		if (status == -1)
+		{
+			cerr << "Failed to bind to socket (port: " << port << ") with error: " << strerror(errno) << endl;
+			throw IPv6_Initialization_Failure;
+		}
+		
+		status = listen(server_sock_ipv6, 5);
+		if (status == -1)
+		{
+			cerr << "Failed to listen: " << strerror(errno) << endl;
+			throw IPv6_Initialization_Failure;
+		}
+		
+		Accept_Struct* accept_struct = new Accept_Struct;
+		accept_struct->server = this;
+		accept_struct->socket = server_sock_ipv6;
+		accept_struct->isUsingSSL = ssl;
+		
+		status = pthread_create(&server_thread_ipv6, NULL, server_thread_function_ipv6, accept_struct);
+		if (status)
+		{
+			cerr << "Failed to create server thread with error: " << status << " (\"" << strerror(errno) << "\")" << endl;
+			throw Thread_Initialization_Failure;
+		}
+	}
+	
+	if ((server_type == IPv4_Server || server_type == Dual_IPv4_IPv6_Server) && !created_dual_stack)
 	{
 		struct sockaddr_in server_name_ipv4;
 		
@@ -347,49 +398,6 @@ void Server::create_server(int port, Server::Server_Type server_type)
 		accept_struct->isUsingSSL = ssl;
 		
 		status = pthread_create(&server_thread_ipv4, NULL, server_thread_function_ipv4, accept_struct);
-		if (status)
-		{
-			cerr << "Failed to create server thread with error: " << status << " (\"" << strerror(errno) << "\")" << endl;
-			throw Thread_Initialization_Failure;
-		}
-	}
-	
-	if (server_type == IPv6_Server || server_type == Dual_IPv4_IPv6_Server)
-	{
-		struct sockaddr_in6 server_name_ipv6;
-		
-		server_sock_ipv6 = socket(AF_INET6, SOCK_STREAM, 0);
-		if (server_sock_ipv6 == -1)
-		{
-			cerr << "Failed to create IPv6 socket: " << strerror(errno) << endl;
-			throw IPv6_Initialization_Failure;
-		}
-		
-		//server_name_ipv6.sin6_len = sizeof(struct sockaddr_in6);
-		server_name_ipv6.sin6_family = AF_INET6;
-		server_name_ipv6.sin6_addr = in6addr_any;
-		server_name_ipv6.sin6_port = htons(port);
-		
-		status = bind(server_sock_ipv6, (struct sockaddr*)&server_name_ipv6, sizeof(server_name_ipv6));
-		if (status == -1)
-		{
-			cerr << "Failed to bind to socket (port: " << port << ") with error: " << strerror(errno) << endl;
-			throw IPv6_Initialization_Failure;
-		}
-		
-		status = listen(server_sock_ipv6, 5);
-		if (status == -1)
-		{
-			cerr << "Failed to listen: " << strerror(errno) << endl;
-			throw IPv6_Initialization_Failure;
-		}
-		
-		Accept_Struct* accept_struct = new Accept_Struct;
-		accept_struct->server = this;
-		accept_struct->socket = server_sock_ipv6;
-		accept_struct->isUsingSSL = ssl;
-		
-		status = pthread_create(&server_thread_ipv6, NULL, server_thread_function_ipv6, accept_struct);
 		if (status)
 		{
 			cerr << "Failed to create server thread with error: " << status << " (\"" << strerror(errno) << "\")" << endl;
