@@ -1,6 +1,10 @@
 *.o
 *.lib
+*.dylib
 *.a
 *.plugin
 *.service
 ircd
+ssl-install
+SSL
+OpenSSL

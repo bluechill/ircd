@@ -26,16 +26,11 @@ openssl_configure="$openssl_configure enable-crypto no-mdc2 no-rc5 enable-tlsext
 rm -rf $openssl_install $openssl_dir
 
 pushd OpenSSL
-
-make clean
-
+make clean -j2
 $openssl_configure
-
-make depend
-
-make
-
-make install
+make depend -j2
+make -j2
+make install -j2
 
 popd
 
