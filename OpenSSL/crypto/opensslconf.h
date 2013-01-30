@@ -23,6 +23,9 @@
 #ifndef OPENSSL_NO_MD2
 # define OPENSSL_NO_MD2
 #endif
+#ifndef OPENSSL_NO_MDC2
+# define OPENSSL_NO_MDC2
+#endif
 #ifndef OPENSSL_NO_RC5
 # define OPENSSL_NO_RC5
 #endif
@@ -41,8 +44,8 @@
 #ifndef OPENSSL_THREADS
 # define OPENSSL_THREADS
 #endif
-#ifndef OPENSSL_NO_DYNAMIC_ENGINE
-# define OPENSSL_NO_DYNAMIC_ENGINE
+#ifndef OPENSSL_NO_STATIC_ENGINE
+# define OPENSSL_NO_STATIC_ENGINE
 #endif
 
 /* The OPENSSL_NO_* macros are also defined as NO_* if the application
@@ -64,6 +67,9 @@
 # endif
 # if defined(OPENSSL_NO_MD2) && !defined(NO_MD2)
 #  define NO_MD2
+# endif
+# if defined(OPENSSL_NO_MDC2) && !defined(NO_MDC2)
+#  define NO_MDC2
 # endif
 # if defined(OPENSSL_NO_RC5) && !defined(NO_RC5)
 #  define NO_RC5
@@ -88,8 +94,8 @@
 
 #if !(defined(VMS) || defined(__VMS)) /* VMS uses logical names instead */
 #if defined(HEADER_CRYPTLIB_H) && !defined(OPENSSLDIR)
-#define ENGINESDIR "/Users/bluechill/Developer/Projects/ircd/OpenSSL/../ssl-install/lib/engines"
-#define OPENSSLDIR "/Users/bluechill/Developer/Projects/ircd/OpenSSL/../ssl-install"
+#define ENGINESDIR "'/Users/bluechill/Developer/projects/evilircd/ssl-install'/lib/engines"
+#define OPENSSLDIR "'/Users/bluechill/Developer/projects/evilircd/ssl-install'/'/Users/bluechill/Developer/projects/evilircd/ssl-install'/ssl"
 #endif
 #endif
 

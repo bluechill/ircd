@@ -13,8 +13,8 @@ SHLIB_MAJOR=1
 SHLIB_MINOR=0.0
 SHLIB_EXT=.$(SHLIB_MAJOR).$(SHLIB_MINOR).dylib
 PLATFORM=darwin64-x86_64-cc
-OPTIONS=--openssldir=/Users/bluechill/Developer/Projects/ircd/OpenSSL/../ssl-install no-ec_nistp_64_gcc_128 no-gmp no-jpake no-krb5 no-md2 no-rc5 no-rfc3779 no-sctp no-shared no-store no-zlib no-zlib-dynamic static-engine
-CONFIGURE_ARGS=darwin64-x86_64-cc --openssldir=/Users/bluechill/Developer/Projects/ircd/OpenSSL/../ssl-install
+OPTIONS=enable-crypto enable-tlsext --prefix='/Users/bluechill/Developer/projects/evilircd/ssl-install' enable-shared enable-zlib -fPIC no-ec_nistp_64_gcc_128 no-gmp no-jpake no-krb5 no-md2 no-mdc2 no-rc5 no-rfc3779 no-sctp no-store no-zlib-dynamic no-static-engine
+CONFIGURE_ARGS=darwin64-x86_64-cc enable-crypto no-mdc2 no-rc5 enable-tlsext --prefix='/Users/bluechill/Developer/projects/evilircd/ssl-install' enable-shared enable-zlib -fPIC
 SHLIB_TARGET=darwin-shared
 
 # HERE indicates where this Makefile lives.  This can be used to indicate
@@ -26,10 +26,10 @@ HERE=.
 # for, say, /usr/ and yet have everything installed to /tmp/somedir/usr/.
 # Normally it is left empty.
 INSTALL_PREFIX=
-INSTALLTOP=/Users/bluechill/Developer/Projects/ircd/OpenSSL/../ssl-install
+INSTALLTOP='/Users/bluechill/Developer/projects/evilircd/ssl-install'
 
 # Do not edit this manually. Use Configure --openssldir=DIR do change this!
-OPENSSLDIR=/Users/bluechill/Developer/Projects/ircd/OpenSSL/../ssl-install
+OPENSSLDIR='/Users/bluechill/Developer/projects/evilircd/ssl-install'/'/Users/bluechill/Developer/projects/evilircd/ssl-install'/ssl
 
 # NO_IDEA - Define to build without the IDEA algorithm
 # NO_RC4  - Define to build without the RC4 algorithm
@@ -60,10 +60,10 @@ OPENSSLDIR=/Users/bluechill/Developer/Projects/ircd/OpenSSL/../ssl-install
 # PKCS1_CHECK - pkcs1 tests.
 
 CC= cc
-CFLAG= -DOPENSSL_THREADS -D_REENTRANT -DDSO_DLFCN -DHAVE_DLFCN_H -arch x86_64 -O3 -DL_ENDIAN -Wall -DOPENSSL_IA32_SSE2 -DOPENSSL_BN_ASM_MONT -DOPENSSL_BN_ASM_MONT5 -DOPENSSL_BN_ASM_GF2m -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DMD5_ASM -DAES_ASM -DVPAES_ASM -DBSAES_ASM -DWHIRLPOOL_ASM -DGHASH_ASM
-DEPFLAG= -DOPENSSL_NO_EC_NISTP_64_GCC_128 -DOPENSSL_NO_GMP -DOPENSSL_NO_JPAKE -DOPENSSL_NO_MD2 -DOPENSSL_NO_RC5 -DOPENSSL_NO_RFC3779 -DOPENSSL_NO_SCTP -DOPENSSL_NO_STORE
+CFLAG= -fPIC -fno-common -DOPENSSL_PIC -DZLIB -DOPENSSL_THREADS -D_REENTRANT -DDSO_DLFCN -DHAVE_DLFCN_H -fPIC -arch x86_64 -O3 -DL_ENDIAN -Wall -DOPENSSL_IA32_SSE2 -DOPENSSL_BN_ASM_MONT -DOPENSSL_BN_ASM_MONT5 -DOPENSSL_BN_ASM_GF2m -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DMD5_ASM -DAES_ASM -DVPAES_ASM -DBSAES_ASM -DWHIRLPOOL_ASM -DGHASH_ASM
+DEPFLAG= -DOPENSSL_NO_EC_NISTP_64_GCC_128 -DOPENSSL_NO_GMP -DOPENSSL_NO_JPAKE -DOPENSSL_NO_MD2 -DOPENSSL_NO_MDC2 -DOPENSSL_NO_RC5 -DOPENSSL_NO_RFC3779 -DOPENSSL_NO_SCTP -DOPENSSL_NO_STORE
 PEX_LIBS= -Wl,-search_paths_first
-EX_LIBS= 
+EX_LIBS=  -lz
 EXE_EXT= 
 ARFLAGS= 
 AR= ar $(ARFLAGS) r
@@ -144,7 +144,7 @@ SHLIBDIRS= crypto ssl
 # dirs in crypto to build
 SDIRS=  \
 	objects \
-	md4 md5 sha mdc2 hmac ripemd whrlpool \
+	md4 md5 sha hmac ripemd whrlpool \
 	des aes rc2 rc4 idea bf cast camellia seed modes \
 	bn ec rsa dsa ecdsa dh ecdh dso engine \
 	buffer bio stack lhash rand err \
@@ -174,7 +174,7 @@ WDIRS=  windows
 LIBS=   libcrypto.a libssl.a
 SHARED_CRYPTO=libcrypto$(SHLIB_EXT)
 SHARED_SSL=libssl$(SHLIB_EXT)
-SHARED_LIBS=
+SHARED_LIBS=$(SHARED_CRYPTO) $(SHARED_SSL)
 SHARED_LIBS_LINK_EXTS=.$(SHLIB_MAJOR).dylib .dylib
 SHARED_LDFLAGS=-arch x86_64 -dynamiclib
 

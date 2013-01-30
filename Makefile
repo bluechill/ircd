@@ -17,10 +17,17 @@ CXXFLAGS=$(CFLAGS)
 LDFLAGS=-lpthread -ldl -lssl -lcrypto
 
 ifeq ($(UNAME), Linux)
-LDFLAGS += -lrt -LSSL/Linux
+OpenSSLDIR = SSL/linux
+LDFLAGS += -lrt
+else ifeq ($(UNAME), FreeBSD)
+OpenSSLDIR = SSL/freebsd
+else ifeq ($(UNAME), Darwin)
+OpenSSLDIR = SSL/darwin
 else
-LDFLAGS += -LSSL/OSX
+OpenSSLDIR = SSL/unknown
 endif
+
+LDFLAGS += -L$(OpenSSLDIR)
 
 ARFLAGS=-cr
 
@@ -61,3 +68,10 @@ clean:
 	@rm -f $(PLUGINS)
 	@rm -f $(PLUGINS:.plugin=.o)
 	@rm -f $(PLUGINS:.service=.o)
+
+distclean:
+	@make clean
+	@cd OpenSSL && make clean && cd ..
+	@find . -name "*.o" -exec rm -f {} \;
+	@rm -rf ssl-install
+	@rm -rf SSL

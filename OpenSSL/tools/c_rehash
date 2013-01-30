@@ -6,8 +6,8 @@
 
 my $openssl;
 
-my $dir = "/Users/bluechill/Developer/Projects/ircd/OpenSSL/../ssl-install";
-my $prefix = "/Users/bluechill/Developer/Projects/ircd/OpenSSL/../ssl-install";
+my $dir = "'/Users/bluechill/Developer/projects/evilircd/ssl-install'/'/Users/bluechill/Developer/projects/evilircd/ssl-install'/ssl";
+my $prefix = "'/Users/bluechill/Developer/projects/evilircd/ssl-install'";
 
 if(defined $ENV{OPENSSL}) {
 	$openssl = $ENV{OPENSSL};
